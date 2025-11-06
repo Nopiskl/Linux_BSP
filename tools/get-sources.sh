@@ -59,23 +59,204 @@ parse_args()
     done
 }
 
+# Clone Linux kernel repository
+clone_linux()
+{
+    echo "=========================================="
+    echo "Fetching Linux Kernel Sources"
+    echo "=========================================="
+    
+    if [ -d ${WORKSPACE}/linux ]; then
+        echo "Linux directory exists, checking status..."
+        pushd ${WORKSPACE}/linux > /dev/null
+        
+        # Check if it's a valid git repository
+        if [ ! -d .git ]; then
+            echo "Invalid git repository, removing and re-cloning..."
+            popd > /dev/null
+            rm -rf ${WORKSPACE}/linux
+            cd ${WORKSPACE}
+            git clone --depth=1 ${LINUX_REPO} -b ${LINUX_BRANCH} linux
+            if [ $? -ne 0 ] && [ "${LINUX_GITEE_REPO}" != "" ]; then
+                echo "Trying fallback repository..."
+                git clone --depth=1 ${LINUX_GITEE_REPO} -b ${LINUX_BRANCH} linux
+            fi
+        else
+            # Update remote
+            git remote -v update > /dev/null 2>&1
+            remote_url=$(git config --get remote.origin.url)
+            current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
+            
+            echo "  Current repository: ${remote_url}"
+            echo "  Current branch: ${current_branch}"
+            echo "  Target repository: ${LINUX_REPO}"
+            echo "  Target branch: ${LINUX_BRANCH}"
+            
+            if [[ "${remote_url}" == "${LINUX_REPO}" && "${current_branch}" == "${LINUX_BRANCH}" ]]; then
+                echo "Repository and branch match, updating..."
+                git pull
+            else
+                echo "Repository or branch mismatch, re-cloning..."
+                popd > /dev/null
+                rm -rf ${WORKSPACE}/linux
+                cd ${WORKSPACE}
+                git clone --depth=1 ${LINUX_REPO} -b ${LINUX_BRANCH} linux
+                if [ $? -ne 0 ] && [ "${LINUX_GITEE_REPO}" != "" ]; then
+                    echo "Trying fallback repository..."
+                    git clone --depth=1 ${LINUX_GITEE_REPO} -b ${LINUX_BRANCH} linux
+                fi
+            fi
+            popd > /dev/null
+        fi
+    else
+        echo "Cloning Linux kernel..."
+        cd ${WORKSPACE}
+        git clone --depth=1 ${LINUX_REPO} -b ${LINUX_BRANCH} linux
+        if [ $? -ne 0 ]; then
+            if [ "${LINUX_GITEE_REPO}" != "" ]; then
+                echo "Trying fallback repository..."
+                git clone --depth=1 ${LINUX_GITEE_REPO} -b ${LINUX_BRANCH} linux
+            else
+                echo "ERROR: Failed to clone Linux kernel"
+                return 1
+            fi
+        fi
+    fi
+    
+    if [ -d ${WORKSPACE}/linux/.git ]; then
+        echo "✓ Linux kernel source ready"
+        return 0
+    else
+        echo "✗ Failed to fetch Linux kernel"
+        return 1
+    fi
+}
+
+# Clone SyterKit bootloader
+clone_syterkit()
+{
+    echo "=========================================="
+    echo "Fetching SyterKit Bootloader"
+    echo "=========================================="
+    
+    if [ -d ${WORKSPACE}/${BL_CONFIG} ]; then
+        echo "SyterKit directory exists, updating..."
+        pushd ${WORKSPACE}/${BL_CONFIG} > /dev/null
+        rm -rf build-${BOARD}
+        git pull
+        popd > /dev/null
+    else
+        echo "Cloning SyterKit..."
+        cd ${WORKSPACE}
+        git clone --depth=1 ${SYTERKIT_REPO} -b ${SYTERKIT_BRANCH} ${BL_CONFIG}
+    fi
+    
+    if [ -d ${WORKSPACE}/${BL_CONFIG} ]; then
+        echo "✓ SyterKit source ready"
+        return 0
+    else
+        echo "✗ Failed to fetch SyterKit"
+        return 1
+    fi
+}
+
+# Clone ARM Trusted Firmware
+clone_atf()
+{
+    echo "=========================================="
+    echo "Fetching ARM Trusted Firmware"
+    echo "=========================================="
+    
+    if [ -d ${WORKSPACE}/atf ]; then
+        echo "ATF directory exists, updating..."
+        pushd ${WORKSPACE}/atf > /dev/null
+        git pull
+        popd > /dev/null
+    else
+        echo "Cloning ATF..."
+        cd ${WORKSPACE}
+        git clone --depth=1 ${ATF_REPO} -b ${ATF_BRANCH} atf
+    fi
+    
+    if [ -d ${WORKSPACE}/atf ]; then
+        echo "✓ ATF source ready"
+        return 0
+    else
+        echo "✗ Failed to fetch ATF"
+        return 1
+    fi
+}
+
+# Clone Rockchip binary firmware
+clone_rkbin()
+{
+    echo "=========================================="
+    echo "Fetching Rockchip Binary Firmware"
+    echo "=========================================="
+    
+    if [ -d ${WORKSPACE}/rkbin ]; then
+        echo "rkbin directory exists, updating..."
+        pushd ${WORKSPACE}/rkbin > /dev/null
+        git pull
+        popd > /dev/null
+    else
+        echo "Cloning rkbin..."
+        cd ${WORKSPACE}
+        git clone ${RKBIN_REPO} rkbin
+        if [ "${RKBIN_BRANCH_HASH}" != "" ]; then
+            pushd rkbin > /dev/null
+            git checkout ${RKBIN_BRANCH_HASH}
+            popd > /dev/null
+        fi
+    fi
+    
+    if [ -d ${WORKSPACE}/rkbin ]; then
+        echo "✓ rkbin source ready"
+        return 0
+    else
+        echo "✗ Failed to fetch rkbin"
+        return 1
+    fi
+}
+
+# Clone U-Boot bootloader
+clone_uboot()
+{
+    echo "=========================================="
+    echo "Fetching U-Boot Bootloader"
+    echo "=========================================="
+    
+    if [ -d ${WORKSPACE}/${BL_CONFIG} ]; then
+        echo "U-Boot directory exists, updating..."
+        pushd ${WORKSPACE}/${BL_CONFIG} > /dev/null
+        git pull
+        popd > /dev/null
+    else
+        echo "Cloning U-Boot..."
+        cd ${WORKSPACE}
+        git clone --depth=1 ${UBOOT_REPO} -b ${UBOOT_BRANCH} ${BL_CONFIG}
+    fi
+    
+    if [ -d ${WORKSPACE}/${BL_CONFIG} ]; then
+        echo "✓ U-Boot source ready"
+        return 0
+    else
+        echo "✗ Failed to fetch U-Boot"
+        return 1
+    fi
+}
+
+# Main execution
 echo "=========================================="
-echo "[TEST] Get Sources Tool"
+echo "BSP Get Sources Tool"
 echo "=========================================="
-echo "[DEBUG] Started at: $(date)"
-echo "[DEBUG] Working directory: $(pwd)"
+echo "Started at: $(date)"
 echo ""
 
 WORKSPACE=$(pwd)
 
 init_params
 parse_args "$@" || show_help $?
-
-echo "[DEBUG] Parameters:"
-echo "  Board=${BOARD}"
-echo "  Mirror=${GITHUB_MIRROR}"
-echo "  Target=${KERNEL_TARGET}"
-echo ""
 
 # Load config
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -84,79 +265,91 @@ CONFIG_DIR="${BASE_DIR}/configs"
 
 CONFIG_FILE="${CONFIG_DIR}/${BOARD}.conf"
 if [ ! -f "${CONFIG_FILE}" ]; then
-    echo "[ERROR] Config file not found: ${CONFIG_FILE}"
-    echo "[ERROR] Config directory: ${CONFIG_DIR}"
+    echo "ERROR: Config file not found: ${CONFIG_FILE}"
+    echo "Available boards:"
+    ls -1 ${CONFIG_DIR}/*.conf 2>/dev/null | sed 's/.*\///;s/\.conf$//' || echo "  (none)"
     exit 1
 fi
 
-echo "[DEBUG] Loading config: ${CONFIG_FILE}"
+echo "Configuration:"
+echo "  Board: ${BOARD}"
+echo "  Config: ${CONFIG_FILE}"
+echo "  Workspace: ${WORKSPACE}"
+echo "  GitHub Mirror: ${GITHUB_MIRROR}"
+echo ""
+
 source "${CONFIG_FILE}"
 
-echo "[DEBUG] Config loaded:"
-echo "  BoardName=${BOARD_NAME}"
-echo "  Arch=${ARCH}"
-echo "  LinuxRepo=${LINUX_REPO}"
-echo "  LinuxBranch=${LINUX_BRANCH}"
-echo "  BootloaderType=${BL_CONFIG}"
-echo ""
+# Apply GitHub mirror if specified
+if [[ "${LINUX_REPO:0:18}" == "https://github.com" && "${GITHUB_MIRROR}" != "no" ]]; then
+    echo "Applying GitHub mirror: ${GITHUB_MIRROR}"
+    LINUX_REPO="${GITHUB_MIRROR}/${LINUX_REPO}"
+fi
 
-# Simulate fetching
-echo "[TEST] Simulating source fetch..."
-echo "[TEST] Step 1: Checking workspace..."
-echo "  Workspace: ${WORKSPACE}"
-
-# Bootloader sources
+echo "Source Repositories:"
+echo "  Linux: ${LINUX_REPO} (${LINUX_BRANCH})"
 if [ "${BL_CONFIG}" == "sunxi-syterkit" ]; then
-    echo "[TEST] Step 2: Would fetch SyterKit"
-    echo "  Repo: ${SYTERKIT_REPO}"
-    echo "  Branch: ${SYTERKIT_BRANCH}"
-    mkdir -p ${WORKSPACE}/${BL_CONFIG}
-    echo "[TEST] Mock SyterKit directory created"
+    echo "  Bootloader: ${SYTERKIT_REPO} (${SYTERKIT_BRANCH})"
 elif [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
-    echo "[TEST] Step 2: Would fetch U-Boot and ATF"
-    echo "  U-Boot: ${UBOOT_REPO}"
-    echo "  U-Boot Branch: ${UBOOT_BRANCH}"
-    echo "  ATF: ${ATF_REPO}"
-    echo "  ATF Branch: ${ATF_BRANCH}"
-    mkdir -p ${WORKSPACE}/atf
-    mkdir -p ${WORKSPACE}/${BL_CONFIG}
-    echo "[TEST] Mock U-Boot and ATF directories created"
+    echo "  U-Boot: ${UBOOT_REPO} (${UBOOT_BRANCH})"
+    echo "  ATF: ${ATF_REPO} (${ATF_BRANCH})"
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
-    echo "[TEST] Step 2: Would fetch U-Boot and rkbin"
-    echo "  U-Boot: ${UBOOT_REPO}"
-    echo "  U-Boot Branch: ${UBOOT_BRANCH}"
+    echo "  U-Boot: ${UBOOT_REPO} (${UBOOT_BRANCH})"
     echo "  RKBIN: ${RKBIN_REPO}"
-    mkdir -p ${WORKSPACE}/rkbin
-    mkdir -p ${WORKSPACE}/${BL_CONFIG}
-    echo "[TEST] Mock U-Boot and rkbin directories created"
+elif [ "${BL_CONFIG}" == "custom" ]; then
+    echo "  Bootloader: Custom (handled separately)"
+fi
+echo ""
+
+# Fetch bootloader sources
+if [ "${BL_CONFIG}" == "sunxi-syterkit" ]; then
+    clone_syterkit || exit 1
+elif [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+    clone_atf || exit 1
+    clone_uboot || exit 1
+elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
+    clone_rkbin || exit 1
+    clone_uboot || exit 1
+elif [ "${BL_CONFIG}" == "custom" ]; then
+    echo "=========================================="
+    echo "Custom Bootloader Configuration"
+    echo "=========================================="
+    echo "Skipping automatic bootloader fetch."
+    echo "Please ensure your bootloader is ready manually."
+    echo ""
 fi
 
-# Kernel sources
-echo "[TEST] Step 3: Would fetch Linux kernel"
-if [ "${GITHUB_MIRROR}" != "no" ] && [[ "${LINUX_REPO}" == https://github.com/* ]]; then
-    echo "  Using Mirror: ${GITHUB_MIRROR}"
-    echo "  Original: ${LINUX_REPO}"
-    MIRRORED="${GITHUB_MIRROR}/${LINUX_REPO}"
-    echo "  Mirrored: ${MIRRORED}"
-else
-    echo "  Repo: ${LINUX_REPO}"
+# Fetch kernel sources
+clone_linux || exit 1
+
+# Verify all sources are available
+echo ""
+echo "=========================================="
+echo "Source Fetch Summary"
+echo "=========================================="
+
+if [ ! -d ${WORKSPACE}/linux/.git ]; then
+    echo "✗ Linux kernel source not available"
+    echo "ERROR: Fetch sources failed, please check your network connection."
+    exit 2
 fi
-echo "  Branch: ${LINUX_BRANCH}"
-mkdir -p ${WORKSPACE}/linux
-echo "[TEST] Mock Linux kernel directory created"
+
+echo "✓ All required sources fetched successfully"
+echo ""
+echo "Workspace: ${WORKSPACE}"
+echo "  - Linux kernel: ${WORKSPACE}/linux"
+
+if [ "${BL_CONFIG}" == "sunxi-syterkit" ]; then
+    echo "  - SyterKit: ${WORKSPACE}/${BL_CONFIG}"
+elif [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+    echo "  - U-Boot: ${WORKSPACE}/${BL_CONFIG}"
+    echo "  - ATF: ${WORKSPACE}/atf"
+elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
+    echo "  - U-Boot: ${WORKSPACE}/${BL_CONFIG}"
+    echo "  - RKBIN: ${WORKSPACE}/rkbin"
+fi
 
 echo ""
-echo "[TEST] Fetch simulation completed!"
-echo "[DEBUG] Summary:"
-echo "  Workspace: ${WORKSPACE}"
-if [ -d ${WORKSPACE}/linux ]; then
-    echo "  ✓ Linux kernel directory exists"
-fi
-if [ -d ${WORKSPACE}/${BL_CONFIG} ] || [ -d ${WORKSPACE}/atf ] || [ -d ${WORKSPACE}/rkbin ]; then
-    echo "  ✓ Bootloader source directories exist"
-fi
-
-echo ""
-echo "[TEST] Completed at: $(date)"
+echo "Completed at: $(date)"
 exit 0
 

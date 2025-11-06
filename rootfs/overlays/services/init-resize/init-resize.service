@@ -1,0 +1,16 @@
+[Unit]
+Description=First Boot Partition Resize
+After=systemd-remount-fs.service
+Before=basic.target
+ConditionPathExists=/usr/local/bin/init-resize.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/init-resize.sh
+StandardOutput=journal+console
+StandardError=journal+console
+RemainAfterExit=yes
+
+[Install]
+WantedBy=basic.target
+

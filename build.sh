@@ -7,7 +7,7 @@
 
 __usage="
 Usage: build [OPTIONS]
-Build BSP components (kernel and bootloader).
+Build BSP components (kernel, bootloader, and rootfs).
 
 Options: 
   -b, --board BOARD              Target board name.
@@ -18,7 +18,12 @@ Options:
   -e, --ccache                   Use ccache (default: yes).
   -o, --kernel-only              Build kernel only (yes/no).
   -c, --clean                    Clean output directory (yes/no).
+  -r, --build-rootfs             Build rootfs (yes/no).
+  -v, --distro-version           Distro version (ubuntu/jammy, debian/bookworm, etc).
+  -t, --rootfs-type              Rootfs type (cli, xfce, gnome, kde, lxqt).
+  -m, --apt-mirror               APT mirror URL.
   -h, --help                     Show help.
+  -d, --docs                     View documentation.
 
 Defaults (Smart Mode):
   - ccache: enabled (faster rebuilds)
@@ -28,6 +33,12 @@ Defaults (Smart Mode):
 Special Commands:
   ./build.sh clean               Clean output directory and fix line endings.
   ./build.sh clean --all         Clean everything including source files.
+  ./build.sh docs                View interactive documentation.
+
+Documentation:
+  Complete documentation available in docs/ directory.
+  Quick access: ./build.sh docs or ./docs/view-docs.sh
+  Online guide: docs/00-快速开始.md
 "
 
 show_help()
@@ -144,6 +155,10 @@ init_params() {
     KERNEL_ONLY=no
     USE_CCACHE=yes
     CLEAN=no
+    BUILD_ROOTFS=none
+    DISTRO_VERSION=none
+    ROOTFS_TYPE=none
+    APT_MIRROR=none
 }
 
 parse_args()
@@ -157,6 +172,21 @@ parse_args()
     do
         if [ "x$1" == "x-h" -o "x$1" == "x--help" ]; then
             return 1
+        elif [ "x$1" == "x-d" -o "x$1" == "x--docs" ]; then
+            # 查看文档
+            DOCS_DIR="${BASE_DIR}/docs"
+            if [ -x "${DOCS_DIR}/view-docs.sh" ]; then
+                echo "📚 Opening documentation viewer..."
+                bash "${DOCS_DIR}/view-docs.sh"
+            else
+                echo "📚 Documentation available in: ${DOCS_DIR}/"
+                echo ""
+                echo "Available documents:"
+                ls -1 "${DOCS_DIR}"/*.md 2>/dev/null | sed 's|.*/||'
+                echo ""
+                echo "To view: less ${DOCS_DIR}/00-快速开始.md"
+            fi
+            exit 0
         elif [ "x$1" == "x" ]; then
             shift
         elif [ "x$1" == "x-b" -o "x$1" == "x--board" ]; then
@@ -194,6 +224,22 @@ parse_args()
             shift
         elif [ "x$1" == "x-c" -o "x$1" == "x--clean" ]; then
             CLEAN=`echo $2`
+            shift
+            shift
+        elif [ "x$1" == "x-r" -o "x$1" == "x--build-rootfs" ]; then
+            BUILD_ROOTFS=`echo $2`
+            shift
+            shift
+        elif [ "x$1" == "x-v" -o "x$1" == "x--distro-version" ]; then
+            DISTRO_VERSION=`echo $2`
+            shift
+            shift
+        elif [ "x$1" == "x-t" -o "x$1" == "x--rootfs-type" ]; then
+            ROOTFS_TYPE=`echo $2`
+            shift
+            shift
+        elif [ "x$1" == "x-m" -o "x$1" == "x--apt-mirror" ]; then
+            APT_MIRROR=`echo $2`
             shift
             shift
         else
@@ -362,6 +408,137 @@ show_dialog()
         rm $tmp
     fi
     
+    # Select build rootfs
+    if [ "${BUILD_ROOTFS}" == "none" ] && [ "${INTERACTIVE}" == "yes" ]; then
+        tmp=`mktemp -t build.XXXXXX`
+        dialog --clear --shadow --backtitle "BSP Build" --title "Build RootFS" \
+            --menu "Build root filesystem?" 15 60 2 \
+            no "No, kernel and bootloader only" \
+            yes "Yes, build complete system" \
+            2> $tmp
+        if [ $? == 1 ]; then
+            rm $tmp
+            exit 2
+        fi
+        BUILD_ROOTFS=$(cat $tmp)
+        clear
+        rm $tmp
+    fi
+    
+    # Select distro version
+    if [ "${BUILD_ROOTFS}" == "yes" ] && [ "${DISTRO_VERSION}" == "none" ] && [ "${INTERACTIVE}" == "yes" ]; then
+        tmp=`mktemp -t build.XXXXXX`
+        dialog --clear --shadow --backtitle "BSP Build" --title "System Distribution" \
+            --menu "Select Linux distribution:" 20 70 10 \
+            "ubuntu/focal" "Ubuntu 20.04 LTS Focal Fossa" \
+            "ubuntu/jammy" "Ubuntu 22.04 LTS Jammy Jellyfish ⭐" \
+            "ubuntu/noble" "Ubuntu 24.04 LTS Noble Numbat" \
+            "debian/bullseye" "Debian 11 Bullseye" \
+            "debian/bookworm" "Debian 12 Bookworm ⭐" \
+            "debian/trixie" "Debian 13 Trixie (Testing)" \
+            2> $tmp
+        if [ $? == 1 ]; then
+            rm $tmp
+            exit 2
+        fi
+        DISTRO_VERSION=$(cat $tmp)
+        clear
+        rm $tmp
+    fi
+    
+    # Select rootfs type
+    if [ "${BUILD_ROOTFS}" == "yes" ] && [ "${ROOTFS_TYPE}" == "none" ] && [ "${INTERACTIVE}" == "yes" ]; then
+        tmp=`mktemp -t build.XXXXXX`
+        dialog --clear --shadow --backtitle "BSP Build" --title "System Type" \
+            --menu "Select rootfs type:" 18 70 8 \
+            cli "Console/CLI (Minimal, ~500MB)" \
+            xfce "XFCE Desktop (Lightweight, ~2GB)" \
+            gnome "GNOME Desktop (Full-featured, ~4GB)" \
+            kde "KDE Plasma Desktop (Modern, ~4GB)" \
+            lxqt "LXQt Desktop (Ultra-light, ~1.5GB)" \
+            2> $tmp
+        if [ $? == 1 ]; then
+            rm $tmp
+            exit 2
+        fi
+        ROOTFS_TYPE=$(cat $tmp)
+        clear
+        rm $tmp
+    fi
+    
+    # Select APT mirror
+    if [ "${BUILD_ROOTFS}" == "yes" ] && [ "${APT_MIRROR}" == "none" ] && [ "${INTERACTIVE}" == "yes" ]; then
+        tmp=`mktemp -t build.XXXXXX`
+        dialog --clear --shadow --backtitle "BSP Build" --title "APT Mirror" \
+            --menu "Select APT mirror source:" 20 75 10 \
+            "auto" "Auto-detect (use official mirror)" \
+            "ustc" "USTC Mirror (China, https://mirrors.ustc.edu.cn)" \
+            "tuna" "Tsinghua Mirror (China, https://mirrors.tuna.tsinghua.edu.cn)" \
+            "aliyun" "Aliyun Mirror (China, https://mirrors.aliyun.com)" \
+            "huawei" "Huawei Mirror (China, https://mirrors.huaweicloud.com)" \
+            "official" "Official Mirror (International)" \
+            "custom" "Custom URL (will prompt)" \
+            2> $tmp
+        if [ $? == 1 ]; then
+            rm $tmp
+            exit 2
+        fi
+        MIRROR_CHOICE=$(cat $tmp)
+        clear
+        rm $tmp
+        
+        # Handle mirror choice
+        case "${MIRROR_CHOICE}" in
+            auto)
+                APT_MIRROR=""
+                ;;
+            ustc)
+                if [[ "${DISTRO_VERSION}" == ubuntu/* ]]; then
+                    APT_MIRROR="https://mirrors.ustc.edu.cn/ubuntu-ports"
+                else
+                    APT_MIRROR="https://mirrors.ustc.edu.cn/debian"
+                fi
+                ;;
+            tuna)
+                if [[ "${DISTRO_VERSION}" == ubuntu/* ]]; then
+                    APT_MIRROR="https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports"
+                else
+                    APT_MIRROR="https://mirrors.tuna.tsinghua.edu.cn/debian"
+                fi
+                ;;
+            aliyun)
+                if [[ "${DISTRO_VERSION}" == ubuntu/* ]]; then
+                    APT_MIRROR="https://mirrors.aliyun.com/ubuntu-ports"
+                else
+                    APT_MIRROR="https://mirrors.aliyun.com/debian"
+                fi
+                ;;
+            huawei)
+                if [[ "${DISTRO_VERSION}" == ubuntu/* ]]; then
+                    APT_MIRROR="https://mirrors.huaweicloud.com/ubuntu-ports"
+                else
+                    APT_MIRROR="https://mirrors.huaweicloud.com/debian"
+                fi
+                ;;
+            official)
+                APT_MIRROR=""
+                ;;
+            custom)
+                tmp=`mktemp -t build.XXXXXX`
+                dialog --clear --shadow --backtitle "BSP Build" --title "Custom Mirror URL" \
+                    --inputbox "Enter APT mirror URL:" 10 70 \
+                    2> $tmp
+                if [ $? == 1 ]; then
+                    rm $tmp
+                    exit 2
+                fi
+                APT_MIRROR=$(cat $tmp)
+                clear
+                rm $tmp
+                ;;
+        esac
+    fi
+    
     # GitHub mirror
     if [ "${GITHUB_MIRROR}" == "no" ] && [ "${INTERACTIVE}" == "yes" ] && [ "${USE_LOCAL}" == "no" ]; then
         tmp=`mktemp -t build.XXXXXX`
@@ -448,9 +625,21 @@ show_config(){
     echo "| LinuxBranch=${LINUX_BRANCH:-unknown}"
     echo "| LinuxConfig=${LINUX_CONFIG:-unknown}"
     echo "+-------------------------------"
+    if [ "${BUILD_ROOTFS}" == "yes" ]; then
+        echo "+-------[ RootFS Config ]-------"
+        echo "| BuildRootFS=${BUILD_ROOTFS}"
+        echo "| Distro=${DISTRO_VERSION}"
+        echo "| Type=${ROOTFS_TYPE}"
+        echo "| APT Mirror=${APT_MIRROR:-auto}"
+        echo "+-------------------------------"
+    fi
     if [ -n "${KERNEL_TARGET}" ]; then
         echo "Next time run:"
-        echo "sudo ./build.sh -b ${BOARD} -k ${MENUCONFIG} -g ${KERNEL_TARGET} -l ${USE_LOCAL} -i ${GITHUB_MIRROR} -o ${KERNEL_ONLY} -e ${USE_CCACHE} -c ${CLEAN}"
+        if [ "${BUILD_ROOTFS}" == "yes" ]; then
+            echo "sudo ./build.sh -b ${BOARD} -k ${MENUCONFIG} -g ${KERNEL_TARGET} -l ${USE_LOCAL} -i ${GITHUB_MIRROR} -o ${KERNEL_ONLY} -e ${USE_CCACHE} -c ${CLEAN} -r ${BUILD_ROOTFS} -v ${DISTRO_VERSION} -t ${ROOTFS_TYPE} -m \"${APT_MIRROR}\""
+        else
+            echo "sudo ./build.sh -b ${BOARD} -k ${MENUCONFIG} -g ${KERNEL_TARGET} -l ${USE_LOCAL} -i ${GITHUB_MIRROR} -o ${KERNEL_ONLY} -e ${USE_CCACHE} -c ${CLEAN}"
+        fi
         echo "-------------------------------"
     fi
 }
@@ -461,9 +650,26 @@ CONFIG_DIR="${BASE_DIR}/configs"
 TOOLS_DIR="${BASE_DIR}/tools"
 OUTPUT_DIR="${BASE_DIR}/output"
 
-# Handle clean command
+# Handle special commands
 if [ "$1" == "clean" ]; then
     clean_workspace "$2"
+fi
+
+# Handle docs command
+if [ "$1" == "docs" ]; then
+    DOCS_DIR="${BASE_DIR}/docs"
+    if [ -x "${DOCS_DIR}/view-docs.sh" ]; then
+        echo "📚 Opening documentation viewer..."
+        bash "${DOCS_DIR}/view-docs.sh"
+    else
+        echo "📚 Documentation available in: ${DOCS_DIR}/"
+        echo ""
+        echo "Available documents:"
+        ls -1 "${DOCS_DIR}"/*.md 2>/dev/null | sed 's|.*/||'
+        echo ""
+        echo "Quick start: less ${DOCS_DIR}/00-快速开始.md"
+    fi
+    exit 0
 fi
 
 INTERACTIVE=no
@@ -600,7 +806,69 @@ else
     fi
 fi
 
+# Build RootFS
+if [ "${BUILD_ROOTFS}" == "yes" ] && [ "${KERNEL_ONLY}" == "no" ]; then
+    echo "=========================================="
+    echo "Step 4: Building RootFS..."
+    echo "=========================================="
+    
+    # 解析发行版信息（处理 ubuntu/jammy 格式）
+    if [[ "${DISTRO_VERSION}" == *"/"* ]]; then
+        DISTRO_TYPE=$(echo ${DISTRO_VERSION} | cut -d'/' -f1)
+        DISTRO_VER=$(echo ${DISTRO_VERSION} | cut -d'/' -f2)
+    else
+        # 自动检测发行版类型
+        if [[ "${DISTRO_VERSION}" == "jammy" || "${DISTRO_VERSION}" == "focal" || "${DISTRO_VERSION}" == "noble" ]]; then
+            DISTRO_TYPE="ubuntu"
+            DISTRO_VER="${DISTRO_VERSION}"
+        elif [[ "${DISTRO_VERSION}" == "bullseye" || "${DISTRO_VERSION}" == "bookworm" || "${DISTRO_VERSION}" == "trixie" ]]; then
+            DISTRO_TYPE="debian"
+            DISTRO_VER="${DISTRO_VERSION}"
+        else
+            DISTRO_TYPE="unknown"
+            DISTRO_VER="${DISTRO_VERSION}"
+        fi
+    fi
+    
+    # 构建 rootfs 压缩包路径（参考 AvaotaOS）
+    ROOTFS_TARBALL="${WORKSPACE}/rootfs-${DISTRO_TYPE}-${DISTRO_VER}-${ROOTFS_TYPE}.tar.gz"
+    
+    # 检查是否已存在 rootfs 压缩包（参考 AvaotaOS 的缓存机制）
+    if [ -f "${ROOTFS_TARBALL}" ]; then
+        echo ""
+        echo "✓ Found existing rootfs tarball, skip build rootfs."
+        echo "  File: ${ROOTFS_TARBALL}"
+        ls -lh "${ROOTFS_TARBALL}"
+        echo ""
+        echo "💡 Tip: To rebuild rootfs, delete the tarball first:"
+        echo "    rm ${ROOTFS_TARBALL}"
+        echo ""
+    else
+        ROOTFS_TOOL="${TOOLS_DIR}/build-rootfs.sh"
+        if [ ! -f "${ROOTFS_TOOL}" ]; then
+            echo "ERROR: Tool not found: ${ROOTFS_TOOL}"
+            exit 1
+        fi
+        
+        # Build RootFS arguments
+        ROOTFS_ARGS="-b ${BOARD} -v ${DISTRO_VERSION} -t ${ROOTFS_TYPE}"
+        if [ -n "${APT_MIRROR}" ]; then
+            ROOTFS_ARGS="${ROOTFS_ARGS} -m ${APT_MIRROR}"
+        fi
+        
+        echo "Building RootFS with args: ${ROOTFS_ARGS}"
+        cd ${WORKSPACE}
+        sudo bash ${ROOTFS_TOOL} ${ROOTFS_ARGS}
+        if [ $? -ne 0 ]; then
+            echo "ERROR: RootFS build failed"
+            exit 1
+        fi
+        cd ${BASE_DIR}
+    fi
+fi
+
 # Summary
+echo ""
 echo "=========================================="
 echo "Build Summary"
 echo "=========================================="
@@ -614,6 +882,14 @@ fi
 if [ -d ${WORKSPACE}/${BOARD}-kernel-pkgs ]; then
     echo "✓ Kernel packages: ${WORKSPACE}/${BOARD}-kernel-pkgs"
     ls -lh ${WORKSPACE}/${BOARD}-kernel-pkgs/*.deb 2>/dev/null | head -5
+fi
+
+if [ "${BUILD_ROOTFS}" == "yes" ]; then
+    ROOTFS_TARBALL=$(ls -t ${WORKSPACE}/rootfs-*.tar.gz 2>/dev/null | head -1)
+    if [ -n "${ROOTFS_TARBALL}" ]; then
+        echo "✓ RootFS tarball: ${ROOTFS_TARBALL}"
+        ls -lh "${ROOTFS_TARBALL}"
+    fi
 fi
 
 echo ""

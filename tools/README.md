@@ -1,317 +1,301 @@
-# BSP 构建工具说明
+# BSP 构建工具
 
-本目录包含 BSP 构建系统的核心工具脚本。
+本目录包含 BSP 框架的核心构建工具。
 
----
+## 工具列表
 
-## 📁 文件结构
+### 主要构建脚本
+
+| 脚本 | 功能 | 说明 |
+|------|------|------|
+| `get-sources.sh` | 获取源代码 | 克隆内核和 bootloader 源代码 |
+| `build-kernel.sh` | 构建内核 | 编译内核并生成 Debian 包 |
+| `build-boot.sh` | 构建 Bootloader | 编译 U-Boot/SyterKit 等 |
+| `build-rootfs.sh` | 构建根文件系统 | 使用 debootstrap 创建 rootfs |
+
+### 辅助工具库
 
 ```
-tools/
-├── build-kernel.sh       # 内核构建脚本（主要）
-├── build-boot.sh         # Bootloader 构建脚本
-├── get-sources.sh        # 源码获取脚本
-├── lib/
-│   └── kernel-deb.sh    # Debian 包生成函数库
-└── README.md            # 本文件
+tools/lib/
+├── kernel-deb.sh      # 内核 Debian 包生成函数
+├── bootloader/        # Bootloader 构建库
+└── rootfs/           # RootFS 辅助函数
+    └── rootfs-deb.sh
 ```
 
----
+## 使用方法
 
-## 🔧 工具说明
+### 1. 获取源代码
 
-### 1. build-kernel.sh
-
-**功能**：编译 Linux 内核并生成 Debian 包
-
-**特性**：
-- ✅ 完整的内核编译流程
-- ✅ 自动生成 4 个 .deb 包（dtb, image, headers, libc-dev）
-- ✅ 支持 ccache 加速编译
-- ✅ 支持 menuconfig 交互配置
-- ✅ 支持内核补丁自动应用
-- ✅ 智能跳过已构建的包
-
-**使用方法**：
-```bash
-# 通常不直接调用，由 build.sh 自动调用
-cd output
-sudo ../tools/build-kernel.sh -b <板型> -k <yes/no> -e <yes/no>
-```
-
-**参数**：
-- `-b <board>` - 板型名称
-- `-k <yes/no>` - 是否运行 menuconfig
-- `-e <yes/no>` - 是否使用 ccache
-- `-g <target>` - 内核目标（保留参数，兼容性）
-
-**输出**：
-```
-output/
-└── <board>-kernel-pkgs/
-    ├── linux-dtb-*.deb         # 设备树
-    ├── linux-image-*.deb       # 内核镜像和模块
-    ├── linux-headers-*.deb     # 内核头文件
-    ├── linux-libc-dev-*.deb    # 用户空间头文件
-    └── .done                   # 完成标记
-```
-
----
-
-### 2. build-boot.sh
-
-**功能**：构建 Bootloader
-
-**状态**：目前为测试脚本，待完善
-
-**使用方法**：
 ```bash
 cd output
-sudo ../tools/build-boot.sh -b <板型>
+sudo bash ../tools/get-sources.sh -b example
+
+# 使用 GitHub 镜像加速
+sudo bash ../tools/get-sources.sh -b example -i https://mirror.ghproxy.com
 ```
 
----
+### 2. 构建内核
 
-### 3. get-sources.sh
-
-**功能**：从 Git 仓库获取内核和 bootloader 源码
-
-**状态**：目前为测试脚本，待完善
-
-**使用方法**：
 ```bash
 cd output
-sudo ../tools/get-sources.sh -b <板型> -i <镜像URL> -g <目标>
+sudo bash ../tools/build-kernel.sh -b example
+
+# 启用 menuconfig
+sudo bash ../tools/build-kernel.sh -b example -k yes
+
+# 使用 ccache 加速
+sudo bash ../tools/build-kernel.sh -b example -e yes
 ```
 
----
+生成的包：
+- `linux-image-*.deb` - 内核镜像和模块
+- `linux-headers-*.deb` - 内核头文件
+- `linux-dtb-*.deb` - 设备树
+- `linux-libc-dev-*.deb` - C 库开发头文件
 
-## 📚 lib/kernel-deb.sh
-
-Debian 包生成函数库，包含以下函数：
-
-### 通用函数
-- `is_enabled()` - 检查内核配置选项
-- `gen_md5()` - 生成 MD5 校验和
-- `gen_changelog()` - 生成 changelog
-- `gen_copyright()` - 生成 copyright
-
-### DTB 包函数
-- `gen_dtb_control()` - control 文件
-- `gen_dtb_postinst()` - 安装后脚本
-- `gen_dtb_preinst()` - 安装前脚本
-
-### Image 包函数
-- `gen_image_control()` - control 文件
-- `gen_image_postinst()` - 安装后脚本
-- `gen_image_postrm()` - 卸载后脚本
-- `gen_image_preinst()` - 安装前脚本
-- `gen_image_prerm()` - 卸载前脚本
-
-### Headers 包函数
-- `gen_headers_control()` - control 文件
-- `gen_headers_postinst()` - 安装后脚本
-- `gen_headers_preinst()` - 安装前脚本
-- `gen_headers_prerm()` - 卸载前脚本
-
-### libc-dev 包函数
-- `gen_libc_dev_control()` - control 文件
-
----
-
-## 🔄 构建流程
-
-### 完整构建流程
+### 3. 构建根文件系统
 
 ```bash
-# 1. 准备工作
-cd BSP
+cd output
+sudo bash ../tools/build-rootfs.sh -b example -v jammy -t cli
 
-# 2. 运行构建（自动调用所有工具）
-sudo ./build.sh -b myboard
+# 构建 XFCE 桌面版本
+sudo bash ../tools/build-rootfs.sh -b example -v jammy -t xfce
+
+# 使用国内镜像
+sudo bash ../tools/build-rootfs.sh -b example -v jammy -t cli \
+    -m https://mirrors.ustc.edu.cn/ubuntu-ports
 ```
 
-### 内核构建详细流程
+支持的 OS 版本：
+- Ubuntu: `jammy` (22.04), `noble` (24.04)
+- Debian: `bookworm` (12), `trixie` (13)
 
-```
-build.sh
-   ↓
-调用 get-sources.sh (如果需要)
-   ↓
-调用 build-boot.sh (如果不是 kernel-only)
-   ↓
-调用 build-kernel.sh
-   ↓
-   1. 加载配置 (configs/myboard.conf)
-   2. 应用补丁 (如果 LINUX_PATHDIR != "none")
-   3. 配置内核 (make defconfig 或 menuconfig)
-   4. 编译内核 (make -j$(nproc))
-   5. 安装 DTB
-   6. 安装 Image & Modules
-   7. 安装 Headers
-   8. 安装 libc-dev
-   9. 生成 Debian 控制文件
-   10. 打包成 .deb
-   11. 创建 .done 标记
+支持的类型：
+- `cli` - 命令行界面（最小系统）
+- `xfce` - XFCE 桌面环境
+- `gnome` - GNOME 桌面环境
+- `kde` - KDE Plasma 桌面
+- `lxqt` - LXQt 桌面环境
+
+### 4. 构建 Bootloader
+
+```bash
+cd output
+sudo bash ../tools/build-boot.sh -b example
 ```
 
----
+## 完整构建流程
 
-## ⚙️ 环境要求
+使用主构建脚本 `build.sh`：
+
+```bash
+# 交互式构建
+sudo ./build.sh
+
+# 命令行参数构建
+sudo ./build.sh -b example -k no -l yes -o no -e yes -c no
+
+# 仅构建内核
+sudo ./build.sh -b example -o yes
+
+# 清理输出目录
+sudo ./build.sh clean
+
+# 清理所有（包括源代码）
+sudo ./build.sh clean --all
+```
+
+## 工具依赖
 
 ### 必需工具
+
 ```bash
-# 基本编译工具
-gcc, make, git, bc
+# 基础工具
+sudo apt-get install -y \
+    build-essential \
+    git \
+    bc \
+    bison \
+    flex \
+    libssl-dev \
+    libncurses5-dev \
+    libelf-dev
 
-# 交叉编译器
-gcc-aarch64-linux-gnu (ARM64)
-gcc-arm-linux-gnueabihf (ARM32)
-
-# Debian 打包工具
-dpkg-deb
-
-# 可选：加速工具
-ccache
-```
-
-### 安装依赖
-```bash
-# Ubuntu/Debian
-sudo apt-get install \
-    gcc make git bc \
+# 交叉编译工具链
+sudo apt-get install -y \
     gcc-aarch64-linux-gnu \
-    dpkg-dev \
-    ccache
+    g++-aarch64-linux-gnu
+
+# RootFS 构建工具
+sudo apt-get install -y \
+    debootstrap \
+    mmdebstrap \
+    qemu-user-static
+
+# 可选工具
+sudo apt-get install -y \
+    ccache \
+    dialog
 ```
 
----
+### 架构支持
 
-## 🎯 使用示例
+- **ARM64**: `gcc-aarch64-linux-gnu`
+- **ARM32**: `gcc-arm-linux-gnueabihf`
 
-### 示例 1：基本构建
+## 高级用法
+
+### 自定义内核配置
+
+1. 运行 menuconfig：
+```bash
+sudo ./tools/build-kernel.sh -b example -k yes
+```
+
+2. 配置会自动保存到 `output/user_defconfig`
+
+3. 下次构建会自动使用保存的配置
+
+### 添加内核补丁
+
+创建补丁目录：
+```bash
+mkdir -p patches/kernel/myboard/patches
+```
+
+放置补丁文件：
+```bash
+cp my-patch.patch patches/kernel/myboard/patches/
+```
+
+在配置文件中启用：
+```bash
+LINUX_PATHDIR="myboard"
+```
+
+### 自定义 RootFS
+
+1. 修改包列表：
+```bash
+nano os/jammy/base-packages.list
+```
+
+2. 创建桌面环境包列表：
+```bash
+nano os/jammy/xfce-packages.list
+```
+
+3. 添加自定义脚本到 `target/` 目录
+
+### 使用 ccache 加速编译
+
+首次安装：
+```bash
+sudo apt-get install ccache
+ccache -M 20G  # 设置缓存大小
+```
+
+启用 ccache：
+```bash
+sudo ./build.sh -b example -e yes
+```
+
+查看缓存统计：
+```bash
+ccache -s
+```
+
+## 输出文件说明
+
+构建完成后，输出目录结构：
+
+```
+output/
+├── linux/                    # 内核源代码
+├── example-kernel-pkgs/      # 内核 Debian 包
+│   ├── linux-image-*.deb
+│   ├── linux-headers-*.deb
+│   ├── linux-dtb-*.deb
+│   └── linux-libc-dev-*.deb
+├── bootloader-example/       # Bootloader 文件
+│   ├── u-boot.bin
+│   ├── boot0_sdcard.bin
+│   └── ...
+└── rootfs-jammy-cli.tar.gz  # 根文件系统打包
+```
+
+## 故障排除
+
+### 权限错误
+
+所有构建脚本需要 root 权限：
+```bash
+sudo ./tools/build-kernel.sh -b example
+```
+
+或修改输出目录所有权：
+```bash
+sudo chown -R $USER:$USER output/
+```
+
+### 编译器未找到
+
+安装交叉编译工具链：
+```bash
+sudo apt-get install gcc-aarch64-linux-gnu
+```
+
+### 源代码获取失败
+
+1. 检查网络连接
+2. 使用 GitHub 镜像：
+```bash
+sudo ./tools/get-sources.sh -b example -i https://mirror.ghproxy.com
+```
+
+### mmdebstrap 未找到
 
 ```bash
-cd BSP
-sudo ./build.sh -b myboard
+sudo apt-get install mmdebstrap debootstrap
 ```
 
-### 示例 2：配置内核
+## 性能优化
+
+### 并行编译
+
+默认使用所有 CPU 核心（`-j$(nproc)`）
+
+手动指定核心数：
+```bash
+# 修改 build-kernel.sh 中的
+make -j4  # 使用 4 核
+```
+
+### ccache 配置
 
 ```bash
-sudo ./build.sh -b myboard -k yes
-# 在 menuconfig 中修改配置
-# 配置会保存到 output/user_defconfig
+# 增加缓存大小
+ccache -M 50G
+
+# 清理缓存
+ccache -C
+
+# 查看统计
+ccache -s
 ```
 
-### 示例 3：快速重新编译
+### 磁盘空间
 
-```bash
-# 使用 ccache + 本地源码 + 仅内核
-sudo ./build.sh -b myboard -l -o yes -e yes
-# 速度可提升 80%
-```
+建议最小空间：
+- 内核构建：20GB
+- RootFS 构建：10GB（CLI）/ 30GB（桌面）
+- 完整构建：50GB
 
-### 示例 4：手动调用构建脚本
+## 参考资料
 
-```bash
-cd output
-
-# 手动构建内核
-sudo ../tools/build-kernel.sh \
-    -b myboard \
-    -k no \
-    -e yes
-```
-
----
-
-## 🐛 调试技巧
-
-### 1. 查看详细日志
-
-脚本会输出详细的构建步骤，注意看：
-```
-=========================================="
-Compiling Linux Kernel
-=========================================="
-```
-
-### 2. 检查中间文件
-
-```bash
-cd output
-ls -la deb-data/     # 查看打包前的文件
-```
-
-### 3. 测试单个步骤
-
-可以修改 `build-kernel.sh`，注释掉 `set -e`，逐步执行
-
-### 4. 检查包内容
-
-```bash
-dpkg -c output/myboard-kernel-pkgs/linux-image-*.deb
-```
-
----
-
-## 📝 开发说明
-
-### 修改 build-kernel.sh
-
-如果需要自定义构建流程：
-
-1. 修改编译选项：找到 `compile_linux()` 函数
-2. 修改包结构：找到 `install_*()` 函数
-3. 修改包信息：修改 `lib/kernel-deb.sh`
-
-### 添加新功能
-
-建议创建新函数，保持主流程简洁：
-
-```bash
-my_custom_step(){
-    echo "Doing custom work..."
-    # your code here
-}
-
-# 在主流程中调用
-compile_linux
-install_dtb
-my_custom_step  # 新增
-install_image_modules
-```
-
----
-
-## ⚠️ 注意事项
-
-1. **必须在 output 目录下运行**
-   - 所有工具脚本假定工作目录为 `output/`
-   - 通过 `build.sh` 自动处理
-
-2. **需要 sudo 权限**
-   - 编译和打包需要 root 权限
-   - 或者配置好 fakeroot
-
-3. **磁盘空间**
-   - 内核源码：~1-2 GB
-   - 编译产物：~5-10 GB
-   - .deb 包：~100-500 MB
-
-4. **编译时间**
-   - 首次：30-60 分钟（取决于 CPU）
-   - ccache 后：5-10 分钟
-
----
-
-## 🔗 参考资料
-
-- [Linux Kernel Documentation](https://www.kernel.org/doc/)
-- [Debian Package Guide](https://www.debian.org/doc/manuals/maint-guide/)
-- [AvaotaOS Build Framework](https://github.com/AvaotaSBC/AvaotaOS)
-
----
-
-**需要帮助？** 查看主项目 README.md 或 QUICKSTART.md
+- [内核配置指南](../configs/README.md)
+- [板级配置模板](../configs/example.conf)
+- [OS 配置说明](../os/README.md)
+- [快速开始](../QUICKSTART.md)

@@ -1,0 +1,12 @@
+Types: deb
+URIs: http://deb.debian.org/debian
+Suites: bullseye bullseye-updates
+Components: main contrib non-free
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: http://security.debian.org/debian-security
+Suites: bullseye-security
+Components: main contrib non-free
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+

@@ -264,26 +264,24 @@ install_headers(){
     find tools -type f 2>/dev/null
     ) > "${temp_file_list}"
     
-    # 复制头文件
+    # 复制头文件（优化版本，参考 AvaotaOS）
     echo "Copying header files..."
-    local count=0
-    while IFS= read -r item
+    
+    set -e
+    for item in $(cat "${temp_file_list}")
     do
-        if [ -e "${item}" ]; then
-            dir_name=$(dirname "${item}")
-            if [ "${dir_name:0:2}" == "./" ];then
-                target_dir="${hdr_path}/${dir_name:2}"
-            else
-                target_dir="${hdr_path}/${dir_name}"
-            fi
-            mkdir -p "${target_dir}" 2>/dev/null
-            cp -a "${item}" "${target_dir}/" 2>/dev/null || true
-            count=$((count + 1))
-            if [ $((count % 1000)) -eq 0 ]; then
-                echo "  Copied ${count} files..."
-            fi
+        dir_name=$(dirname "${item}")
+        if [ "${dir_name:0:2}" == "./" ];then
+            target_dir="${hdr_path}/${dir_name:2}"
+        else
+            target_dir="${hdr_path}/${dir_name}"
         fi
-    done < "${temp_file_list}"
+        if [ ! -d "${target_dir}" ];then
+            mkdir -p "${target_dir}"
+        fi
+        cp -r "${item}" "${target_dir}/" 2>/dev/null || true
+    done
+    set +e
     
     rm "${temp_file_list}"
     

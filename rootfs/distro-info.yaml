@@ -1,0 +1,58 @@
+# Linux Distribution Information
+# Supported distributions for BSP_T527 RootFS
+
+ubuntu:
+  focal:
+    version: "20.04"
+    codename: "Focal Fossa"
+    release_date: "2020-04"
+    lts: true
+    eol_date: "2025-04"
+    arch: [arm64, armhf]
+    components: [main, restricted, universe, multiverse]
+    
+  jammy:
+    version: "22.04"
+    codename: "Jammy Jellyfish"
+    release_date: "2022-04"
+    lts: true
+    eol_date: "2027-04"
+    arch: [arm64, armhf]
+    components: [main, restricted, universe, multiverse]
+    recommended: true
+    
+  noble:
+    version: "24.04"
+    codename: "Noble Numbat"
+    release_date: "2024-04"
+    lts: true
+    eol_date: "2029-04"
+    arch: [arm64, armhf]
+    components: [main, restricted, universe, multiverse]
+
+debian:
+  bullseye:
+    version: "11"
+    codename: "Bullseye"
+    release_date: "2021-08"
+    eol_date: "2026-06"
+    arch: [arm64, armhf]
+    components: [main, contrib, non-free]
+    
+  bookworm:
+    version: "12"
+    codename: "Bookworm"
+    release_date: "2023-06"
+    eol_date: "2028-06"
+    arch: [arm64, armhf]
+    components: [main, contrib, non-free, non-free-firmware]
+    recommended: true
+    
+  trixie:
+    version: "13"
+    codename: "Trixie"
+    release_date: "TBD"
+    status: "testing"
+    arch: [arm64, armhf]
+    components: [main, contrib, non-free, non-free-firmware]
+
