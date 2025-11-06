@@ -1,0 +1,16 @@
+# Build output
+output/
+
+# Legacy directories
+boards/
+scripts/
+
+# Temporary files
+*.log
+*.tmp
+.*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
