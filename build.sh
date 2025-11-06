@@ -13,12 +13,17 @@ Options:
   -b, --board BOARD              Target board name.
   -k, --menuconfig               Run kernel menuconfig (yes/no).
   -g, --target                   Kernel target/branch.
-  -l, --local                    Use local sources (skip fetch).
+  -l, --local                    Use local sources (default: yes, auto-fetch if missing).
   -i, --mirror GITHUB_MIRROR     GitHub mirror URL.
-  -e, --ccache                   Use ccache (yes/no).
+  -e, --ccache                   Use ccache (default: yes).
   -o, --kernel-only              Build kernel only (yes/no).
   -c, --clean                    Clean output directory (yes/no).
   -h, --help                     Show help.
+
+Defaults (Smart Mode):
+  - ccache: enabled (faster rebuilds)
+  - local sources: enabled (auto-fetch if not found)
+  - To force re-fetch: use -l no
 
 Special Commands:
   ./build.sh clean               Clean output directory and fix line endings.
@@ -134,10 +139,10 @@ init_params() {
     BOARD=none
     MENUCONFIG=no
     KERNEL_TARGET=bsp
-    USE_LOCAL=no
+    USE_LOCAL=yes
     GITHUB_MIRROR=no
     KERNEL_ONLY=no
-    USE_CCACHE=no
+    USE_CCACHE=yes
     CLEAN=no
 }
 
@@ -371,6 +376,7 @@ show_dialog()
             exit 2
         fi
         
+    
         IF_MIRROR=$(cat $tmp)
         if [ "${IF_MIRROR}" == "yes" ]; then
             tmp2=`mktemp -t build.XXXXXX`
@@ -509,10 +515,32 @@ echo "Tools: ${TOOLS_DIR}"
 echo "Configs: ${CONFIG_DIR}"
 
 # Fetch sources
-if [ "${USE_LOCAL}" == "no" ]; then
-    echo "=========================================="
-    echo "Step 1: Fetching sources..."
-    echo "=========================================="
+echo "=========================================="
+echo "Step 1: Checking sources..."
+echo "=========================================="
+
+# Smart source management
+NEED_FETCH=no
+
+if [ "${USE_LOCAL}" == "yes" ]; then
+    # Check if local sources exist
+    if [ ! -d "${WORKSPACE}/linux" ] || [ ! -d "${WORKSPACE}/linux/.git" ]; then
+        echo "⚠ Local sources not found, will fetch automatically."
+        NEED_FETCH=yes
+    else
+        echo "✓ Using local sources"
+        echo "  Kernel source: ${WORKSPACE}/linux"
+    fi
+else
+    # User explicitly wants to fetch
+    echo "Fetching sources (forced by -l no)..."
+    NEED_FETCH=yes
+fi
+
+# Fetch if needed
+if [ "${NEED_FETCH}" == "yes" ]; then
+    echo ""
+    echo "Fetching sources..."
     FETCH_TOOL="${TOOLS_DIR}/get-sources.sh"
     if [ ! -f "${FETCH_TOOL}" ]; then
         echo "ERROR: Tool not found: ${FETCH_TOOL}"
@@ -523,11 +551,8 @@ if [ "${USE_LOCAL}" == "no" ]; then
         echo "ERROR: Fetch failed"
         exit 1
     fi
-else
-    echo "=========================================="
-    echo "Step 1: Using local sources"
-    echo "=========================================="
 fi
+echo ""
 
 # Build bootloader
 if [ "${KERNEL_ONLY}" == "no" ]; then

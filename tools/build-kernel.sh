@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
-# SPDX-LICense-Identifier: GPL-3.0
+# SPDX-License-Identifier: GPL-3.0
 #
 # Build Kernel Tool
-# Build Linux kernel and generate packages
+# Build Linux kernel and generate Debian packages
 
 __usage="
 Usage: build-kernel [OPTIONS]
-Build Linux kernel.
+Build Linux kernel and generate .deb packages.
 
 Options: 
   -b, --board BOARD              Target board name.
   -k, --menuconfig               Run menuconfig (yes/no).
-  -g, --target                   Kernel target/branch.
+  -g, --target                   Kernel target (not used, for compatibility).
   -e, --ccache                   Use ccache (yes/no).
   -h, --help                     Show help.
 "
@@ -59,17 +59,437 @@ parse_args()
             shift
             shift
         else
-            echo `date` - ERROR, UNKNOWN params "$@"
+            echo "ERROR: Unknown parameter: $1"
             return 2
         fi
     done
 }
 
+# 应用内核补丁
+patch_kernel()
+{
+    local patchdir=$1
+    local targetdir=$2
+    
+    if [ ! -d "${targetdir}" ];then
+        echo "ERROR: Kernel source directory not found: ${targetdir}"
+        return 1
+    fi
+    
+    echo "Applying kernel patches from: ${patchdir}"
+    
+    # 应用补丁文件
+    if [ -d "${TOOL_DIR}/../patches/kernel/${patchdir}/patches" ];then
+        for pth in $(ls "${TOOL_DIR}/../patches/kernel/${patchdir}/patches" 2>/dev/null)
+        do
+            echo "  Applying patch: ${pth}"
+            cp "${TOOL_DIR}/../patches/kernel/${patchdir}/patches/${pth}" "${targetdir}/"
+            pushd "${targetdir}" > /dev/null
+            patch -p1 < "${pth}" || {
+                echo "ERROR: Failed to apply patch: ${pth}"
+                popd > /dev/null
+                return 1
+            }
+            rm "${pth}"
+            popd > /dev/null
+        done
+        echo "  Patches applied successfully"
+    else
+        echo "  No patch directory found"
+    fi
+    
+    # 复制额外文件
+    if [ -d "${TOOL_DIR}/../patches/kernel/${patchdir}/files" ];then
+        echo "  Copying additional files..."
+        cp -rv "${TOOL_DIR}/../patches/kernel/${patchdir}/files/"* "${targetdir}/"
+        sync
+    fi
+}
+
+# 编译内核
+compile_linux()
+{
+    echo "=========================================="
+    echo "Compiling Linux Kernel"
+    echo "=========================================="
+    
+    if [ ! -d "${WORKSPACE}/linux" ];then
+        echo "ERROR: Linux source directory not found: ${WORKSPACE}/linux"
+        exit 1
+    fi
+    
+    cd "${WORKSPACE}/linux"
+    
+    # 检查是否有用户自定义配置
+    if [ -f "${WORKSPACE}/user_defconfig" ];then
+        echo "Using user defconfig..."
+        cp "${WORKSPACE}/user_defconfig" .config
+        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
+    else
+        echo "Using default config: ${LINUX_CONFIG}"
+        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}
+    fi
+    
+    # 运行 menuconfig（如果需要）
+    if [ "${MENUCONFIG}" == "yes" ];then
+        echo "Running menuconfig..."
+        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} menuconfig
+        # 保存用户配置
+        cat .config > "${WORKSPACE}/user_defconfig"
+        echo "Configuration saved to user_defconfig"
+    fi
+    
+    # 编译内核
+    echo "Building kernel (this may take a while)..."
+    echo "  Architecture: ${ARCH}"
+    echo "  Cross-compiler: ${KERNEL_GCC}"
+    echo "  Jobs: $(nproc)"
+    echo "  Ccache: ${USE_CCACHE}"
+    
+    ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} -j$(nproc) || {
+        echo "ERROR: Kernel compilation failed"
+        exit 1
+    }
+    
+    echo "Kernel compilation completed successfully"
+    
+    # 准备 deb-data 目录
+    if [ -d "${WORKSPACE}/deb-data" ];then
+        rm -rf "${WORKSPACE}/deb-data"
+    fi
+    mkdir -p "${WORKSPACE}/deb-data"
+}
+
+# 安装设备树
+install_dtb(){
+    echo "=========================================="
+    echo "Installing Device Tree Blobs"
+    echo "=========================================="
+    
+    cd "${WORKSPACE}/linux"
+    mkdir -p "${WORKSPACE}/deb-data/dtb/boot"
+    
+    ${MAKE} ARCH=${ARCH} \
+        CROSS_COMPILE=${KERNEL_GCC} \
+        dtbs_install \
+        INSTALL_PATH="${WORKSPACE}/deb-data/dtb/boot" || {
+        echo "WARNING: DTB installation failed (may not be available for this architecture)"
+        return 0
+    }
+    
+    # 重命名 dtbs 目录
+    if [ -d "${WORKSPACE}/deb-data/dtb/boot/dtbs" ]; then
+        KERNEL_VER=$(ls "${WORKSPACE}/deb-data/dtb/boot/dtbs/" 2>/dev/null | head -1)
+        if [ -n "${KERNEL_VER}" ]; then
+            mv "${WORKSPACE}/deb-data/dtb/boot/dtbs/${KERNEL_VER}" \
+               "${WORKSPACE}/deb-data/dtb/boot/dtb-${KERNEL_VER}"
+            rm -rf "${WORKSPACE}/deb-data/dtb/boot/dtbs"
+            echo "DTBs installed to: dtb-${KERNEL_VER}"
+        fi
+    fi
+}
+
+# 安装内核镜像和模块
+install_image_modules(){
+    echo "=========================================="
+    echo "Installing Kernel Image and Modules"
+    echo "=========================================="
+    
+    cd "${WORKSPACE}/linux"
+    mkdir -p "${WORKSPACE}/deb-data/image/boot"
+    mkdir -p "${WORKSPACE}/deb-data/image/etc/kernel/postinst.d"
+    mkdir -p "${WORKSPACE}/deb-data/image/etc/kernel/postrm.d"
+    mkdir -p "${WORKSPACE}/deb-data/image/etc/kernel/preinst.d"
+    mkdir -p "${WORKSPACE}/deb-data/image/etc/kernel/prerm.d"
+    
+    # 安装模块
+    echo "Installing modules..."
+    ${MAKE} ARCH=${ARCH} \
+        CROSS_COMPILE=${KERNEL_GCC} \
+        modules_install \
+        INSTALL_MOD_PATH="${WORKSPACE}/deb-data/image" || {
+        echo "ERROR: Module installation failed"
+        exit 1
+    }
+    
+    # 安装内核镜像
+    echo "Installing kernel image..."
+    ${MAKE} ARCH=${ARCH} \
+        CROSS_COMPILE=${KERNEL_GCC} \
+        install \
+        INSTALL_PATH="${WORKSPACE}/deb-data/image/boot" || {
+        echo "ERROR: Kernel image installation failed"
+        exit 1
+    }
+    
+    echo "Kernel image and modules installed successfully"
+}
+
+# 安装内核头文件
+install_headers(){
+    echo "=========================================="
+    echo "Installing Kernel Headers"
+    echo "=========================================="
+    
+    cd "${WORKSPACE}/linux"
+    KERNEL_VER=$(ls "${WORKSPACE}/deb-data/image/lib/modules/" | head -1)
+    
+    if [ -z "${KERNEL_VER}" ]; then
+        echo "ERROR: Cannot determine kernel version"
+        exit 1
+    fi
+    
+    echo "Kernel version: ${KERNEL_VER}"
+    
+    hdr_path="${WORKSPACE}/deb-data/headers/usr/src/linux-headers-${KERNEL_VER}"
+    mkdir -p "${hdr_path}"
+    mkdir -p "${WORKSPACE}/deb-data/headers/lib/modules/${KERNEL_VER}"
+    
+    echo "Collecting kernel headers (this may take a while)..."
+    
+    # 生成文件列表
+    temp_file_list=$(mktemp)
+    
+    (
+    find . -name Makefile\* -o -name Kconfig\* -o -name \*.pl
+    find arch/*/include include scripts -type f -o -type l 2>/dev/null
+    find security/*/include -type f 2>/dev/null
+    
+    if [ -d "arch/${ARCH}" ]; then
+        find "arch/${ARCH}" -name module.lds -o -name Kbuild.platforms -o -name Platform 2>/dev/null
+        find $(find "arch/${ARCH}" -name include -o -name scripts -type d 2>/dev/null) -type f 2>/dev/null
+    fi
+    
+    find Module.symvers include scripts -type f 2>/dev/null
+    find tools -type f 2>/dev/null
+    ) > "${temp_file_list}"
+    
+    # 复制头文件
+    echo "Copying header files..."
+    local count=0
+    while IFS= read -r item
+    do
+        if [ -e "${item}" ]; then
+            dir_name=$(dirname "${item}")
+            if [ "${dir_name:0:2}" == "./" ];then
+                target_dir="${hdr_path}/${dir_name:2}"
+            else
+                target_dir="${hdr_path}/${dir_name}"
+            fi
+            mkdir -p "${target_dir}" 2>/dev/null
+            cp -a "${item}" "${target_dir}/" 2>/dev/null || true
+            count=$((count + 1))
+            if [ $((count % 1000)) -eq 0 ]; then
+                echo "  Copied ${count} files..."
+            fi
+        fi
+    done < "${temp_file_list}"
+    
+    rm "${temp_file_list}"
+    
+    # 复制 .config 和其他必要文件
+    cp .config "${hdr_path}/"
+    cp Module.symvers "${hdr_path}/" 2>/dev/null || true
+    
+    echo "Kernel headers installed successfully"
+}
+
+# 安装 libc 开发头文件
+install_libc_dev(){
+    echo "=========================================="
+    echo "Installing libc Development Headers"
+    echo "=========================================="
+    
+    cd "${WORKSPACE}/linux"
+    mkdir -p "${WORKSPACE}/deb-data/libc-dev/usr"
+    
+    ${MAKE} ARCH=${ARCH} \
+        CROSS_COMPILE=${KERNEL_GCC} \
+        headers_install \
+        INSTALL_HDR_PATH="${WORKSPACE}/deb-data/libc-dev/usr" || {
+        echo "ERROR: libc-dev installation failed"
+        exit 1
+    }
+    
+    echo "libc-dev headers installed successfully"
+}
+
+# 生成 Debian 包控制文件
+gen_debian_files(){
+    echo "=========================================="
+    echo "Generating Debian Package Control Files"
+    echo "=========================================="
+    
+    KERNEL_VER=$(ls "${WORKSPACE}/deb-data/image/lib/modules/" | head -1)
+    DEB_DATA_PATH="${WORKSPACE}/deb-data"
+    BSP_VERSION="1.0.0"
+    
+    # DTB 包
+    echo "Generating DTB package files..."
+    DTB_PATH="${DEB_DATA_PATH}/dtb"
+    mkdir -p "${DTB_PATH}/DEBIAN"
+    gen_dtb_control "${DTB_PATH}/DEBIAN/control" \
+        "${BSP_VERSION}" \
+        "${PKG_NAME}" \
+        "${ARCH}" \
+        "${KERNEL_VER}" \
+        "$(du -sk ${DTB_PATH} | cut -f1)"
+    gen_dtb_postinst "${DTB_PATH}/DEBIAN/postinst" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_dtb_preinst "${DTB_PATH}/DEBIAN/preinst" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_changelog "${DTB_PATH}/DEBIAN/changelog" \
+        "dtb" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_md5 "${DTB_PATH}/DEBIAN/md5sums" \
+        "${DTB_PATH}"
+    
+    # Image 包
+    echo "Generating Image package files..."
+    IMAGE_PATH="${DEB_DATA_PATH}/image"
+    mkdir -p "${IMAGE_PATH}/DEBIAN"
+    gen_image_control "${IMAGE_PATH}/DEBIAN/control" \
+        "${BSP_VERSION}" \
+        "${PKG_NAME}" \
+        "${ARCH}" \
+        "${KERNEL_VER}" \
+        "$(du -sk ${IMAGE_PATH} | cut -f1)"
+    gen_image_postinst "${IMAGE_PATH}/DEBIAN/postinst" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_image_postrm "${IMAGE_PATH}/DEBIAN/postrm" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_image_preinst "${IMAGE_PATH}/DEBIAN/preinst" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_image_prerm "${IMAGE_PATH}/DEBIAN/prerm" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_changelog "${IMAGE_PATH}/DEBIAN/changelog" \
+        "image" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_md5 "${IMAGE_PATH}/DEBIAN/md5sums" \
+        "${IMAGE_PATH}"
+    
+    # Headers 包
+    echo "Generating Headers package files..."
+    HEADERS_PATH="${DEB_DATA_PATH}/headers"
+    mkdir -p "${HEADERS_PATH}/DEBIAN"
+    gen_headers_control "${HEADERS_PATH}/DEBIAN/control" \
+        "${BSP_VERSION}" \
+        "${PKG_NAME}" \
+        "${ARCH}" \
+        "${KERNEL_VER}" \
+        "$(du -sk ${HEADERS_PATH} | cut -f1)"
+    gen_headers_postinst "${HEADERS_PATH}/DEBIAN/postinst" \
+        "${PKG_NAME}" \
+        "${ARCH}" \
+        "${KERNEL_VER}"
+    gen_headers_preinst "${HEADERS_PATH}/DEBIAN/preinst" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_headers_prerm "${HEADERS_PATH}/DEBIAN/prerm" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_changelog "${HEADERS_PATH}/DEBIAN/changelog" \
+        "headers" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_md5 "${HEADERS_PATH}/DEBIAN/md5sums" \
+        "${HEADERS_PATH}"
+    
+    # libc-dev 包
+    echo "Generating libc-dev package files..."
+    LIBC_DEV_PATH="${DEB_DATA_PATH}/libc-dev"
+    mkdir -p "${LIBC_DEV_PATH}/DEBIAN"
+    gen_libc_dev_control "${LIBC_DEV_PATH}/DEBIAN/control" \
+        "${BSP_VERSION}" \
+        "${PKG_NAME}" \
+        "${ARCH}" \
+        "${KERNEL_VER}" \
+        "$(du -sk ${LIBC_DEV_PATH} | cut -f1)"
+    gen_changelog "${LIBC_DEV_PATH}/DEBIAN/changelog" \
+        "libc-dev" \
+        "${PKG_NAME}" \
+        "${KERNEL_VER}"
+    gen_md5 "${LIBC_DEV_PATH}/DEBIAN/md5sums" \
+        "${LIBC_DEV_PATH}"
+}
+
+# 生成包文档
+gen_package_docs(){
+    echo "=========================================="
+    echo "Generating Package Documentation"
+    echo "=========================================="
+    
+    DEB_DATA_PATH="${WORKSPACE}/deb-data"
+    
+    # 为每个包创建文档目录并添加 copyright
+    for pkg_type in dtb image headers libc-dev; do
+        PKG_DOC_PATH="${DEB_DATA_PATH}/${pkg_type}/usr/share/doc/linux-${pkg_type}-${PKG_NAME}"
+        mkdir -p "${PKG_DOC_PATH}"
+        gen_copyright "${PKG_DOC_PATH}/copyright"
+        
+        # 压缩 changelog
+        if [ -f "${DEB_DATA_PATH}/${pkg_type}/DEBIAN/changelog" ]; then
+            cp "${DEB_DATA_PATH}/${pkg_type}/DEBIAN/changelog" "${PKG_DOC_PATH}/"
+            gzip -f "${PKG_DOC_PATH}/changelog"
+        fi
+    done
+    
+    echo "Package documentation generated"
+}
+
+# 打包 Debian 包
+pack_kernel_packages(){
+    echo "=========================================="
+    echo "Packing Kernel Debian Packages"
+    echo "=========================================="
+    
+    DEB_DATA_PATH="${WORKSPACE}/deb-data"
+    
+    # 创建输出目录
+    mkdir -p "${PACKAGES_OUTPUT_PATH}"
+    
+    # 打包各个包
+    echo "Building DTB package..."
+    dpkg-deb -b "${DEB_DATA_PATH}/dtb" "${PACKAGES_OUTPUT_PATH}" || {
+        echo "ERROR: Failed to build DTB package"
+        exit 1
+    }
+    
+    echo "Building Image package..."
+    dpkg-deb -b "${DEB_DATA_PATH}/image" "${PACKAGES_OUTPUT_PATH}" || {
+        echo "ERROR: Failed to build Image package"
+        exit 1
+    }
+    
+    echo "Building Headers package..."
+    dpkg-deb -b "${DEB_DATA_PATH}/headers" "${PACKAGES_OUTPUT_PATH}" || {
+        echo "ERROR: Failed to build Headers package"
+        exit 1
+    }
+    
+    echo "Building libc-dev package..."
+    dpkg-deb -b "${DEB_DATA_PATH}/libc-dev" "${PACKAGES_OUTPUT_PATH}" || {
+        echo "ERROR: Failed to build libc-dev package"
+        exit 1
+    }
+    
+    echo "All packages built successfully"
+}
+
+# ==================== Main Script ====================
+
 echo "=========================================="
-echo "[TEST] Build Kernel Tool"
+echo "BSP Kernel Build Tool"
 echo "=========================================="
-echo "[DEBUG] Started at: $(date)"
-echo "[DEBUG] Working directory: $(pwd)"
+echo "Started at: $(date)"
 echo ""
 
 WORKSPACE=$(pwd)
@@ -77,106 +497,75 @@ WORKSPACE=$(pwd)
 init_params
 parse_args "$@" || show_help $?
 
-echo "[DEBUG] Parameters:"
-echo "  Board=${BOARD}"
-echo "  Menuconfig=${MENUCONFIG}"
-echo "  Target=${KERNEL_TARGET}"
-echo "  Ccache=${USE_CCACHE}"
-echo ""
-
-# Load config
+# 加载配置文件
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "${TOOL_DIR}/.." && pwd)"
 CONFIG_DIR="${BASE_DIR}/configs"
 
 CONFIG_FILE="${CONFIG_DIR}/${BOARD}.conf"
 if [ ! -f "${CONFIG_FILE}" ]; then
-    echo "[ERROR] Config file not found: ${CONFIG_FILE}"
-    echo "[ERROR] Config directory: ${CONFIG_DIR}"
+    echo "ERROR: Config file not found: ${CONFIG_FILE}"
     exit 1
 fi
 
-echo "[DEBUG] Loading config: ${CONFIG_FILE}"
+echo "Loading configuration: ${BOARD}"
 source "${CONFIG_FILE}"
 
-echo "[DEBUG] Config loaded:"
-echo "  BoardName=${BOARD_NAME}"
-echo "  Arch=${ARCH}"
-echo "  CrossCompiler=${KERNEL_GCC}"
-echo "  LinuxConfig=${LINUX_CONFIG}"
-echo "  PatchDir=${LINUX_PATHDIR}"
-echo "  DeviceTree=${DEVICE_DTS}"
-echo ""
-
-# Simulate build
-echo "[TEST] Simulating kernel build..."
-KERNEL_SRC="${WORKSPACE}/linux"
-if [ ! -d "${KERNEL_SRC}" ]; then
-    echo "[TEST] Creating mock kernel source..."
-    mkdir -p ${KERNEL_SRC}
-    echo "[TEST] Mock kernel source created"
-else
-    echo "[TEST] Kernel source exists: ${KERNEL_SRC}"
-fi
-
-if [ "${LINUX_PATHDIR}" != "none" ]; then
-    echo "[TEST] Step 2: Would apply patches"
-    echo "  Patch dir: ../patches/kernel/${LINUX_PATHDIR}"
-    echo "[TEST] Simulating patch application..."
-else
-    echo "[TEST] Step 2: No patches to apply"
-fi
-
-echo "[TEST] Step 3: Configuring kernel"
-echo "  Config: ${LINUX_CONFIG}"
-echo "  Arch: ${ARCH}"
+echo "Configuration:"
+echo "  Board: ${BOARD_NAME}"
+echo "  Architecture: ${ARCH}"
 echo "  Cross-compiler: ${KERNEL_GCC}"
-echo "  Ccache: ${USE_CCACHE}"
+echo "  Linux config: ${LINUX_CONFIG}"
+echo ""
 
-if [ "${MENUCONFIG}" == "yes" ]; then
-    echo "[TEST] Would run: make ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} menuconfig"
-    echo "[TEST] Simulating menuconfig..."
-else
-    echo "[TEST] Would run: make ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}"
-    echo "[TEST] Simulating defconfig..."
+# 生成包名
+kconfig_name=${LINUX_CONFIG%_defconfig}
+PKG_NAME=${kconfig_name//_/-}
+PACKAGES_OUTPUT_PATH="${WORKSPACE}/${BOARD}-kernel-pkgs"
+
+# 设置 MAKE 命令
+MAKE="make"
+if [ "${USE_CCACHE}" == "yes" ];then
+    echo "Using ccache for compilation"
+    MAKE="ccache ${MAKE}"
 fi
 
-echo "[TEST] Step 4: Compiling kernel"
-echo "[TEST] Would run: make ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} -j$(nproc)"
-echo "[TEST] Simulating compilation..."
-sleep 0.1
+# 加载 Debian 包生成函数
+source "${TOOL_DIR}/lib/kernel-deb.sh"
 
-echo "[TEST] Step 5: Installing artifacts"
-PKGS_DIR="${WORKSPACE}/${BOARD}-kernel-pkgs"
-mkdir -p ${PKGS_DIR}
+# 执行构建流程
+set -e  # 遇到错误立即退出
 
-VERSION="5.15.0-test"
-PKG_NAME="linux-${BOARD_NAME//_/-}"
-
-echo "[TEST] Creating mock packages..."
-touch ${PKGS_DIR}/linux-dtb-${PKG_NAME}_${VERSION}_${ARCH}.deb
-touch ${PKGS_DIR}/linux-image-${PKG_NAME}_${VERSION}_${ARCH}.deb
-touch ${PKGS_DIR}/linux-headers-${PKG_NAME}_${VERSION}_${ARCH}.deb
-touch ${PKGS_DIR}/linux-libc-dev-${PKG_NAME}_${VERSION}_${ARCH}.deb
-
-echo "[TEST] Step 6: Creating marker file"
-echo "${LINUX_CONFIG}" > ${PKGS_DIR}/.done
-echo "[TEST] Marker created: ${PKGS_DIR}/.done"
-
-echo ""
-echo "[TEST] Kernel build simulation completed!"
-echo "[DEBUG] Summary:"
-echo "  Kernel source: ${KERNEL_SRC}"
-echo "  Packages: ${PKGS_DIR}"
-if [ -d ${PKGS_DIR} ]; then
-    echo "  ✓ Packages directory exists"
-    echo "  Packages:"
-    ls -lh ${PKGS_DIR}/*.deb 2>/dev/null | while read line; do
-        echo "    $line"
-    done || echo "    (no .deb files)"
+# 1. 应用补丁（如果有）
+if [ "${LINUX_PATHDIR}" != "none" ];then
+    patch_kernel "${LINUX_PATHDIR}" "${WORKSPACE}/linux"
 fi
 
-echo ""
-echo "[TEST] Completed at: $(date)"
-exit 0
+# 2. 编译内核
+compile_linux
 
+# 3. 安装各个组件
+install_dtb
+install_image_modules
+install_headers
+install_libc_dev
+
+# 4. 生成 Debian 包控制文件
+gen_debian_files
+gen_package_docs
+
+# 5. 打包成 .deb
+pack_kernel_packages
+
+# 6. 创建完成标记
+echo "${LINUX_CONFIG}" > "${PACKAGES_OUTPUT_PATH}/.done"
+
+echo ""
+echo "=========================================="
+echo "Kernel Build Completed Successfully!"
+echo "=========================================="
+echo "Output directory: ${PACKAGES_OUTPUT_PATH}"
+echo "Packages:"
+ls -lh "${PACKAGES_OUTPUT_PATH}"/*.deb 2>/dev/null || echo "  (No .deb files found)"
+echo ""
+echo "Completed at: $(date)"
