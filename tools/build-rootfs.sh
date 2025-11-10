@@ -374,7 +374,7 @@ parse_args "$@" || show_help $?
 # 加载配置文件
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "${TOOL_DIR}/.." && pwd)"
-CONFIG_DIR="${BASE_DIR}/configs"
+CONFIG_DIR="${BASE_DIR}/configs/board"
 
 CONFIG_FILE="${CONFIG_DIR}/${BOARD}.conf"
 if [ ! -f "${CONFIG_FILE}" ]; then

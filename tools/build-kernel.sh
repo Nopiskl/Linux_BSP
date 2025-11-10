@@ -120,38 +120,108 @@ compile_linux()
     
     cd "${WORKSPACE}/linux"
     
-    # 检查是否有用户自定义配置
+    # 定义 target 目录
+    TARGET_DEFCONFIG_DIR="${BASE_DIR}/configs/target/defconfig"
+    
+    # 多级查找 defconfig（按照优先级顺序）
+    CONFIG_FOUND=no
+    CONFIG_SOURCE=""
+    
+    echo "Searching for kernel configuration..."
+    echo "  Target config: ${LINUX_CONFIG}"
+    echo ""
+    
+    # 优先级 0: 检查是否有用户自定义配置（最高优先级，用于保存 menuconfig 结果）
     if [ -f "${WORKSPACE}/user_defconfig" ];then
-        echo "Using user defconfig..."
+        echo "✓ Found: user_defconfig (from previous menuconfig)"
         cp "${WORKSPACE}/user_defconfig" .config
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
-    else
-        echo "Using default config: ${LINUX_CONFIG}"
+        CONFIG_FOUND=yes
+        CONFIG_SOURCE="user_defconfig"
+        
+    # 优先级 1: 查找 target/defconfig/${LINUX_CONFIG}
+    elif [ -f "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}" ];then
+        echo "✓ Found: target/defconfig/${LINUX_CONFIG}"
+        # 复制到内核源码的 configs 目录
+        cp "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}" arch/${ARCH}/configs/
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}
+        CONFIG_FOUND=yes
+        CONFIG_SOURCE="target/defconfig/${LINUX_CONFIG}"
+        
+    # 优先级 2: 查找 target/defconfig/${LINUX_CONFIG}.config
+    elif [ -f "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config" ];then
+        echo "✓ Found: target/defconfig/${LINUX_CONFIG}.config"
+        cp "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config" .config
+        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
+        CONFIG_FOUND=yes
+        CONFIG_SOURCE="target/defconfig/${LINUX_CONFIG}.config"
+        
+    # 优先级 3: 使用内核源码中的 defconfig
+    elif [ -f "arch/${ARCH}/configs/${LINUX_CONFIG}" ];then
+        echo "✓ Found: arch/${ARCH}/configs/${LINUX_CONFIG} (kernel source)"
+        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}
+        CONFIG_FOUND=yes
+        CONFIG_SOURCE="arch/${ARCH}/configs/${LINUX_CONFIG}"
+        
+    # 优先级 4: 检查是否已有 .config
+    elif [ -f ".config" ];then
+        echo "⚠ Using existing .config in kernel source directory"
+        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
+        CONFIG_FOUND=yes
+        CONFIG_SOURCE="existing .config"
+        
+    else
+        echo ""
+        echo "=========================================="
+        echo "ERROR: No kernel configuration found!"
+        echo "=========================================="
+        echo "Searched locations (in order):"
+        echo "  1. ${WORKSPACE}/user_defconfig"
+        echo "  2. ${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}"
+        echo "  3. ${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config"
+        echo "  4. arch/${ARCH}/configs/${LINUX_CONFIG}"
+        echo "  5. .config (in kernel source)"
+        echo ""
+        echo "Please create a configuration file in one of these locations."
+        echo "See: configs/target/README.md for details."
+        echo "=========================================="
+        exit 1
     fi
+    
+    echo "  Config source: ${CONFIG_SOURCE}"
+    echo ""
     
     # 运行 menuconfig（如果需要）
     if [ "${MENUCONFIG}" == "yes" ];then
         echo "Running menuconfig..."
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} menuconfig
         # 保存用户配置
-        cat .config > "${WORKSPACE}/user_defconfig"
-        echo "Configuration saved to user_defconfig"
+        cp .config "${WORKSPACE}/user_defconfig"
+        echo "✓ Configuration saved to: ${WORKSPACE}/user_defconfig"
+        echo "  (This will be used in future builds with highest priority)"
+        echo ""
     fi
     
     # 编译内核
-    echo "Building kernel (this may take a while)..."
+    echo "=========================================="
+    echo "Building Kernel"
+    echo "=========================================="
     echo "  Architecture: ${ARCH}"
     echo "  Cross-compiler: ${KERNEL_GCC}"
     echo "  Jobs: $(nproc)"
     echo "  Ccache: ${USE_CCACHE}"
+    echo ""
     
     ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} -j$(nproc) || {
+        echo ""
         echo "ERROR: Kernel compilation failed"
+        echo "Check the error messages above for details."
         exit 1
     }
     
-    echo "Kernel compilation completed successfully"
+    echo ""
+    echo "✓ Kernel compilation completed successfully"
+    echo ""
     
     # 准备 deb-data 目录
     if [ -d "${WORKSPACE}/deb-data" ];then
@@ -498,7 +568,7 @@ parse_args "$@" || show_help $?
 # 加载配置文件
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "${TOOL_DIR}/.." && pwd)"
-CONFIG_DIR="${BASE_DIR}/configs"
+CONFIG_DIR="${BASE_DIR}/configs/board"
 
 CONFIG_FILE="${CONFIG_DIR}/${BOARD}.conf"
 if [ ! -f "${CONFIG_FILE}" ]; then
@@ -524,8 +594,26 @@ PACKAGES_OUTPUT_PATH="${WORKSPACE}/${BOARD}-kernel-pkgs"
 # 设置 MAKE 命令
 MAKE="make"
 if [ "${USE_CCACHE}" == "yes" ];then
-    echo "Using ccache for compilation"
-    MAKE="ccache ${MAKE}"
+    # 更严格的 ccache 检查：确保命令真正可执行
+    if command -v ccache &> /dev/null && ccache --version &> /dev/null; then
+        echo "✓ Using ccache for compilation"
+        MAKE="ccache ${MAKE}"
+    else
+        echo ""
+        echo "=========================================="
+        echo "⚠ WARNING: ccache not available"
+        echo "=========================================="
+        echo "ccache not found or not executable."
+        echo "Compilation will proceed WITHOUT ccache (slower builds)."
+        echo ""
+        echo "To install ccache (recommended):"
+        echo "  sudo apt-get update && sudo apt-get install -y ccache"
+        echo ""
+        echo "To disable this warning, use: -e no"
+        echo "=========================================="
+        echo ""
+        USE_CCACHE=no
+    fi
 fi
 
 # 加载 Debian 包生成函数

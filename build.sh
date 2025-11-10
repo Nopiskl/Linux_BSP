@@ -37,8 +37,9 @@ Special Commands:
 
 Documentation:
   Complete documentation available in docs/ directory.
-  Quick access: ./build.sh docs or ./docs/view-docs.sh
-  Online guide: docs/00-快速开始.md
+  Quick access: ./build.sh docs
+  Chinese docs: docs/CN/
+  English docs: docs/EN/
 "
 
 show_help()
@@ -175,17 +176,20 @@ parse_args()
         elif [ "x$1" == "x-d" -o "x$1" == "x--docs" ]; then
             # 查看文档
             DOCS_DIR="${BASE_DIR}/docs"
-            if [ -x "${DOCS_DIR}/view-docs.sh" ]; then
-                echo "📚 Opening documentation viewer..."
-                bash "${DOCS_DIR}/view-docs.sh"
-            else
-                echo "📚 Documentation available in: ${DOCS_DIR}/"
-                echo ""
-                echo "Available documents:"
-                ls -1 "${DOCS_DIR}"/*.md 2>/dev/null | sed 's|.*/||'
-                echo ""
-                echo "To view: less ${DOCS_DIR}/00-快速开始.md"
-            fi
+            echo "=========================================="
+            echo "BSP_T527 Documentation"
+            echo "=========================================="
+            echo ""
+            echo "Documentation: ${DOCS_DIR}/"
+            echo ""
+            echo "Chinese (中文): ${DOCS_DIR}/CN/"
+            echo "English:        ${DOCS_DIR}/EN/"
+            echo "Index:          ${DOCS_DIR}/README.md"
+            echo ""
+            echo "Quick Access:"
+            echo "  ./build.sh docs"
+            echo "  less ${DOCS_DIR}/README.md"
+            echo "=========================================="
             exit 0
         elif [ "x$1" == "x" ]; then
             shift
@@ -646,7 +650,7 @@ show_config(){
 
 # Main
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="${BASE_DIR}/configs"
+CONFIG_DIR="${BASE_DIR}/configs/board"
 TOOLS_DIR="${BASE_DIR}/tools"
 OUTPUT_DIR="${BASE_DIR}/output"
 
@@ -658,17 +662,56 @@ fi
 # Handle docs command
 if [ "$1" == "docs" ]; then
     DOCS_DIR="${BASE_DIR}/docs"
-    if [ -x "${DOCS_DIR}/view-docs.sh" ]; then
-        echo "📚 Opening documentation viewer..."
+    
+    # Check if view-docs.sh exists and use it for interactive viewing
+    if [ -x "${DOCS_DIR}/view-docs.sh" ] && [ -t 0 ]; then
         bash "${DOCS_DIR}/view-docs.sh"
-    else
-        echo "📚 Documentation available in: ${DOCS_DIR}/"
-        echo ""
-        echo "Available documents:"
-        ls -1 "${DOCS_DIR}"/*.md 2>/dev/null | sed 's|.*/||'
-        echo ""
-        echo "Quick start: less ${DOCS_DIR}/00-快速开始.md"
+        exit 0
     fi
+    
+    # Otherwise show documentation list
+    echo "=========================================="
+    echo "BSP_T527 Documentation"
+    echo "=========================================="
+    echo ""
+    echo "Documentation location: ${DOCS_DIR}/"
+    echo ""
+    
+    # Show Chinese documentation
+    if [ -d "${DOCS_DIR}/CN" ]; then
+        echo "Chinese Documentation (中文文档):"
+        echo "  ${DOCS_DIR}/CN/"
+        if ls "${DOCS_DIR}/CN"/*.md >/dev/null 2>&1; then
+            ls -1 "${DOCS_DIR}/CN"/*.md 2>/dev/null | sed 's|.*/|  - |'
+        fi
+        echo ""
+    fi
+    
+    # Show English documentation
+    if [ -d "${DOCS_DIR}/EN" ]; then
+        echo "English Documentation:"
+        echo "  ${DOCS_DIR}/EN/"
+        if ls "${DOCS_DIR}/EN"/*.md >/dev/null 2>&1; then
+            ls -1 "${DOCS_DIR}/EN"/*.md 2>/dev/null | sed 's|.*/|  - |'
+        fi
+        echo ""
+    fi
+    
+    # Show main index
+    if [ -f "${DOCS_DIR}/README.md" ]; then
+        echo "Documentation Index:"
+        echo "  ${DOCS_DIR}/README.md"
+        echo ""
+    fi
+    
+    echo "Quick Access:"
+    echo "  Interactive:  bash ${DOCS_DIR}/view-docs.sh"
+    echo "  Chinese:      cd ${DOCS_DIR}/CN && less 快速开始.md"
+    echo "  English:      cd ${DOCS_DIR}/EN && less Quick-Start.md"
+    echo "  Index:        less ${DOCS_DIR}/README.md"
+    echo ""
+    echo "=========================================="
+    
     exit 0
 fi
 

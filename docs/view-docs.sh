@@ -1,72 +1,84 @@
 #!/bin/bash
 
-# BSP_T527 文档查看工具
+# BSP_T527 Documentation Viewer / 文档查看工具
 
 DOCS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CN_DIR="${DOCS_DIR}/CN"
+EN_DIR="${DOCS_DIR}/EN"
 
-# 颜色定义
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# 显示欢迎信息
+# Display header
 show_header() {
     clear
-    echo -e "${BLUE}╔═══════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC}   ${GREEN}📚 BSP_T527 文档查看工具${NC}            ${BLUE}║${NC}"
-    echo -e "${BLUE}╚═══════════════════════════════════════════╝${NC}"
+    echo "=========================================="
+    echo "BSP_T527 Documentation Viewer"
+    echo "文档查看工具"
+    echo "=========================================="
     echo ""
 }
 
-# 显示文档列表
-show_docs_menu() {
-    echo -e "${YELLOW}核心文档：${NC}"
+# Main menu
+show_main_menu() {
+    echo "Select Language / 选择语言:"
     echo ""
-    echo "  ${GREEN}0${NC}. 📗 快速开始 (00-快速开始.md)"
-    echo "     → 5分钟快速入门，适合所有新用户"
-    echo ""
-    echo "  ${GREEN}1${NC}. ⚙️  环境配置 (01-环境配置.md)"
-    echo "     → 详细的环境准备和依赖安装"
-    echo ""
-    echo "  ${GREEN}2${NC}. 📘 构建指南 (02-构建指南.md)"
-    echo "     → 完整的构建流程和高级用法"
-    echo ""
-    echo "  ${GREEN}3${NC}. 🗂️  RootFS配置 (03-RootFS配置.md)"
-    echo "     → 根文件系统定制和软件包管理"
-    echo ""
-    echo "  ${GREEN}4${NC}. ❓ 常见问题 (04-常见问题.md)"
-    echo "     → 24+ 常见问题快速解决方案"
-    echo ""
-    echo "  ${GREEN}5${NC}. 📂 目录结构 (05-目录结构.md)"
-    echo "     → 项目文件组织和工具说明"
-    echo ""
-    echo -e "${YELLOW}其他文档：${NC}"
-    echo ""
-    echo "  ${GREEN}i${NC}. 📑 文档导航 (README.md)"
-    echo "     → 完整的文档索引和使用指南"
-    echo ""
-    echo "  ${GREEN}d${NC}. 📄 文档说明 (DOCS_INFO.md)"
-    echo "     → 文档体系介绍和优化说明"
-    echo ""
-    echo "  ${GREEN}q${NC}. 退出"
+    echo "  1. Chinese (中文)"
+    echo "  2. English"
+    echo "  3. View Index (查看索引)"
+    echo "  q. Quit (退出)"
     echo ""
 }
 
-# 打开文档
+# Chinese documentation menu
+show_cn_menu() {
+    echo "=========================================="
+    echo "Chinese Documentation / 中文文档"
+    echo "=========================================="
+    echo ""
+    echo "  1. 快速开始 (快速开始.md)"
+    echo "  2. 板型配置 (板型配置.md)"
+    echo "  3. 内核配置 (内核配置.md)"
+    echo "  4. RootFS配置 (RootFS配置.md)"
+    echo "  5. 常见问题 (常见问题.md)"
+    echo "  6. 目录结构 (目录结构.md)"
+    echo ""
+    echo "  b. Back to main menu (返回主菜单)"
+    echo "  q. Quit (退出)"
+    echo ""
+}
+
+# English documentation menu
+show_en_menu() {
+    echo "=========================================="
+    echo "English Documentation / 英文文档"
+    echo "=========================================="
+    echo ""
+    echo "  1. Quick Start (Quick-Start.md)"
+    echo "  2. Board Configuration (Board-Configuration.md)"
+    echo "  3. Kernel Configuration (Kernel-Configuration.md)"
+    echo "  4. RootFS Configuration (RootFS-Configuration.md)"
+    echo "  5. FAQ (FAQ.md)"
+    echo "  6. Directory Structure (Directory-Structure.md)"
+    echo ""
+    echo "  b. Back to main menu (返回主菜单)"
+    echo "  q. Quit (退出)"
+    echo ""
+}
+
+# Open document
 open_doc() {
-    local doc_file="$1"
-    local doc_path="${DOCS_DIR}/${doc_file}"
+    local doc_path="$1"
+    local doc_name="$2"
     
     if [ ! -f "$doc_path" ]; then
-        echo -e "${YELLOW}⚠️  文档不存在: ${doc_file}${NC}"
+        echo "Warning: Document not found: ${doc_name}"
+        echo "按 Enter 继续..."
+        read
         return 1
     fi
     
-    echo -e "${GREEN}📖 正在打开: ${doc_file}${NC}"
+    echo "Opening: ${doc_name}"
     echo ""
     
-    # 尝试不同的查看器
+    # Try different viewers
     if command -v less >/dev/null 2>&1; then
         less -R "$doc_path"
     elif command -v more >/dev/null 2>&1; then
@@ -74,57 +86,54 @@ open_doc() {
     elif command -v cat >/dev/null 2>&1; then
         cat "$doc_path"
         echo ""
-        echo -e "${YELLOW}按 Enter 继续...${NC}"
+        echo "Press Enter to continue..."
         read
     else
-        echo -e "${YELLOW}⚠️  无法找到文档查看器${NC}"
+        echo "Error: Cannot find document viewer"
         return 1
     fi
 }
 
-# 主菜单
-main_menu() {
+# Chinese documentation handler
+cn_docs_menu() {
     while true; do
         show_header
-        show_docs_menu
+        show_cn_menu
         
-        echo -n -e "${BLUE}请选择要查看的文档 (0-5, i, d, q): ${NC}"
+        echo -n "Select document (1-6, b, q): "
         read choice
         
         case $choice in
-            0)
-                open_doc "00-快速开始.md"
-                ;;
             1)
-                open_doc "01-环境配置.md"
+                open_doc "${CN_DIR}/快速开始.md" "快速开始.md"
                 ;;
             2)
-                open_doc "02-构建指南.md"
+                open_doc "${CN_DIR}/板型配置.md" "板型配置.md"
                 ;;
             3)
-                open_doc "03-RootFS配置.md"
+                open_doc "${CN_DIR}/内核配置.md" "内核配置.md"
                 ;;
             4)
-                open_doc "04-常见问题.md"
+                open_doc "${CN_DIR}/RootFS配置.md" "RootFS配置.md"
                 ;;
             5)
-                open_doc "05-目录结构.md"
+                open_doc "${CN_DIR}/常见问题.md" "常见问题.md"
                 ;;
-            i|I)
-                open_doc "README.md"
+            6)
+                open_doc "${CN_DIR}/目录结构.md" "目录结构.md"
                 ;;
-            d|D)
-                open_doc "DOCS_INFO.md"
+            b|B)
+                return 0
                 ;;
             q|Q)
                 echo ""
-                echo -e "${GREEN}👋 感谢使用 BSP_T527 文档！${NC}"
+                echo "Goodbye!"
                 echo ""
                 exit 0
                 ;;
             *)
                 echo ""
-                echo -e "${YELLOW}⚠️  无效选择，请重试${NC}"
+                echo "Invalid selection, please try again"
                 echo ""
                 sleep 2
                 ;;
@@ -132,18 +141,120 @@ main_menu() {
     done
 }
 
-# 如果提供了参数，直接打开文档
+# English documentation handler
+en_docs_menu() {
+    while true; do
+        show_header
+        show_en_menu
+        
+        echo -n "Select document (1-6, b, q): "
+        read choice
+        
+        case $choice in
+            1)
+                open_doc "${EN_DIR}/Quick-Start.md" "Quick-Start.md"
+                ;;
+            2)
+                open_doc "${EN_DIR}/Board-Configuration.md" "Board-Configuration.md"
+                ;;
+            3)
+                open_doc "${EN_DIR}/Kernel-Configuration.md" "Kernel-Configuration.md"
+                ;;
+            4)
+                open_doc "${EN_DIR}/RootFS-Configuration.md" "RootFS-Configuration.md"
+                ;;
+            5)
+                open_doc "${EN_DIR}/FAQ.md" "FAQ.md"
+                ;;
+            6)
+                open_doc "${EN_DIR}/Directory-Structure.md" "Directory-Structure.md"
+                ;;
+            b|B)
+                return 0
+                ;;
+            q|Q)
+                echo ""
+                echo "Goodbye!"
+                echo ""
+                exit 0
+                ;;
+            *)
+                echo ""
+                echo "Invalid selection, please try again"
+                echo ""
+                sleep 2
+                ;;
+        esac
+    done
+}
+
+# Main menu handler
+main_menu() {
+    while true; do
+        show_header
+        show_main_menu
+        
+        echo -n "Your choice (1-3, q): "
+        read choice
+        
+        case $choice in
+            1)
+                cn_docs_menu
+                ;;
+            2)
+                en_docs_menu
+                ;;
+            3)
+                open_doc "${DOCS_DIR}/README.md" "README.md"
+                ;;
+            q|Q)
+                echo ""
+                echo "Goodbye!"
+                echo ""
+                exit 0
+                ;;
+            *)
+                echo ""
+                echo "Invalid selection, please try again"
+                echo ""
+                sleep 2
+                ;;
+        esac
+    done
+}
+
+# Handle command-line arguments
 if [ $# -gt 0 ]; then
-    if [ -f "${DOCS_DIR}/$1" ]; then
-        open_doc "$1"
+    # Direct file access
+    if [ "$1" == "cn" ] || [ "$1" == "CN" ]; then
+        cn_docs_menu
+    elif [ "$1" == "en" ] || [ "$1" == "EN" ]; then
+        en_docs_menu
+    elif [ -f "${DOCS_DIR}/$1" ]; then
+        open_doc "${DOCS_DIR}/$1" "$1"
+    elif [ -f "${CN_DIR}/$1" ]; then
+        open_doc "${CN_DIR}/$1" "$1"
+    elif [ -f "${EN_DIR}/$1" ]; then
+        open_doc "${EN_DIR}/$1" "$1"
     else
-        echo -e "${YELLOW}⚠️  找不到文档: $1${NC}"
+        echo "Document not found: $1"
         echo ""
-        echo "可用的文档："
-        ls -1 "${DOCS_DIR}"/*.md
+        echo "Available documents:"
+        echo ""
+        echo "Chinese (CN):"
+        ls -1 "${CN_DIR}"/*.md 2>/dev/null | sed 's|.*/|  |'
+        echo ""
+        echo "English (EN):"
+        ls -1 "${EN_DIR}"/*.md 2>/dev/null | sed 's|.*/|  |'
+        echo ""
+        echo "Usage:"
+        echo "  $0          - Interactive menu"
+        echo "  $0 cn       - Chinese docs menu"
+        echo "  $0 en       - English docs menu"
+        echo "  $0 <file>   - Open specific file"
         exit 1
     fi
 else
-    # 否则显示交互式菜单
+    # Interactive menu
     main_menu
 fi

@@ -1,518 +1,100 @@
-# 📚 BSP_T527 完整文档
+# BSP_T527 Documentation / 文档
 
-欢迎使用 BSP_T527 文档中心！这里提供完整、易懂的使用指南。
+[English](#english) | [中文](#中文)
 
 ---
 
-## 🚀 快速导航
+## English
 
-### 新手入门
+Complete documentation for BSP build system.
 
-<table>
-<tr>
-<td width="50%">
+### Documentation
 
-#### 📗 [快速开始](./00-快速开始.md)
-**5 分钟快速上手**
+**[Quick Start](./EN/Quick-Start.md)** - Get started in 5 minutes
+- Install dependencies
+- Start building
+- View output
 
+**[Board Configuration](./EN/Board-Configuration.md)** - Board configuration guide
+- Basic configuration
+- Kernel setup
+- Bootloader setup
+
+**[Kernel Configuration](./EN/Kernel-Configuration.md)** - Kernel and device tree
+- defconfig management
+- Device tree configuration
+- Configuration search order
+
+**[RootFS Configuration](./EN/RootFS-Configuration.md)** - Root filesystem customization
+- Supported distributions
+- Package management
+- Overlay system
+
+**[FAQ](./EN/FAQ.md)** - Troubleshooting
+- Build errors
+- Configuration issues
+- Performance optimization
+
+**[Directory Structure](./EN/Directory-Structure.md)** - Project organization
+- Directory descriptions
+- File purposes
+- Configuration locations
+
+### Quick Access
+
+```bash
+# View documentation
+cd docs/EN
+less Quick-Start.md
+```
+
+---
+
+## 中文
+
+BSP 构建系统完整文档。
+
+### 文档列表
+
+**[快速开始](./CN/快速开始.md)** - 5分钟快速上手
 - 安装依赖
 - 启动构建
 - 查看产物
-- 常见问题
 
-⭐ **推荐首先阅读**
+**[板型配置](./CN/板型配置.md)** - 板型配置说明
+- 基本配置
+- 内核设置
+- Bootloader 设置
 
-</td>
-<td width="50%">
+**[内核配置](./CN/内核配置.md)** - 内核和设备树
+- defconfig 管理
+- 设备树配置
+- 配置查找顺序
 
-#### ⚙️ [环境配置](./01-环境配置.md)
-**详细的环境准备**
+**[RootFS配置](./CN/RootFS配置.md)** - 根文件系统定制
+- 支持的发行版
+- 软件包管理
+- 覆盖系统
 
-- 系统要求
-- 依赖安装
-- 镜像源配置
-- DNS 配置
-- 环境验证
-
-</td>
-</tr>
-</table>
-
-### 核心文档
-
-<table>
-<tr>
-<td width="50%">
-
-#### 📘 [构建指南](./02-构建指南.md)
-**完整的构建流程**
-
-- 构建流程概览
-- 交互式构建
-- 命令行构建
-- 参数详解
-- 高级用法
+**[常见问题](./CN/常见问题.md)** - 问题排查
+- 构建错误
+- 配置问题
 - 性能优化
 
-</td>
-<td width="50%">
+**[目录结构](./CN/目录结构.md)** - 项目组织
+- 目录说明
+- 文件作用
+- 配置位置
 
-#### 🗂️ [RootFS 配置](./03-RootFS配置.md)
-**根文件系统定制**
-
-- RootFS 结构
-- 软件包管理
-- 系统配置
-- 自定义服务
-- 镜像源配置
-- 高级定制
-
-</td>
-</tr>
-</table>
-
-### 参考文档
-
-<table>
-<tr>
-<td width="50%">
-
-#### ❓ [常见问题](./04-常见问题.md)
-**问题排查和解决**
-
-- 环境相关
-- 编译相关
-- RootFS 相关
-- 网络相关
-- 权限相关
-- 性能相关
-
-</td>
-<td width="50%">
-
-#### 📂 [目录结构](./05-目录结构.md)
-**项目文件组织**
-
-- 核心文件
-- 配置目录
-- 工具脚本
-- RootFS 配置
-- 构建输出
-- 缓存机制
-
-</td>
-</tr>
-</table>
-
----
-
-## 📖 推荐阅读路径
-
-### 🎯 路径 1：快速上手（15 分钟）
-
-适合：想快速体验的用户
-
-```
-1. 快速开始 (5 分钟)
-   ↓
-2. 执行首次构建 (10 分钟操作)
-   ↓
-3. 完成！查看构建产物
-```
-
-**开始：** [快速开始 →](./00-快速开始.md)
-
----
-
-### 🎓 路径 2：深入学习（1 小时）
-
-适合：需要定制系统的用户
-
-```
-1. 快速开始 (5 分钟)
-   ↓
-2. 环境配置 (10 分钟)
-   ↓
-3. 构建指南 (20 分钟)
-   ↓
-4. RootFS 配置 (20 分钟)
-   ↓
-5. 实践构建 (30 分钟操作)
-```
-
-**开始：** [快速开始 →](./00-快速开始.md)
-
----
-
-### 🔧 路径 3：高级定制（2 小时）
-
-适合：需要深度定制的开发者
-
-```
-1. 阅读所有核心文档 (40 分钟)
-   ↓
-2. 了解目录结构 (10 分钟)
-   ↓
-3. 自定义配置 (30 分钟)
-   ↓
-4. 构建测试 (40 分钟)
-```
-
-**开始：** [构建指南 →](./02-构建指南.md)
-
----
-
-## 🎯 按场景查找
-
-### 场景 1：首次使用
-
-**问题：** 我是新手，如何开始？
-
-**文档：**
-1. [快速开始](./00-快速开始.md) - 快速入门
-2. [环境配置](./01-环境配置.md) - 准备环境
-3. [构建指南](./02-构建指南.md) - 执行构建
-
----
-
-### 场景 2：构建失败
-
-**问题：** 构建过程出现错误
-
-**文档：**
-1. [常见问题](./04-常见问题.md) - 查找解决方案
-2. [构建指南 - 故障排查](./02-构建指南.md#高级用法) - 查看日志
-
-**快速索引：**
-- [编译器未找到](./04-常见问题.md#q1-交叉编译器未找到)
-- [磁盘空间不足](./04-常见问题.md#q4-磁盘空间不足)
-- [DNS 解析失败](./04-常见问题.md#q12-dns-解析失败)
-- [构建速度慢](./04-常见问题.md#q18-构建速度太慢)
-
----
-
-### 场景 3：定制系统
-
-**问题：** 我想添加自己的软件包和配置
-
-**文档：**
-1. [RootFS 配置](./03-RootFS配置.md) - 完整定制指南
-2. [目录结构](./05-目录结构.md) - 了解文件组织
-
-**具体操作：**
-- [添加软件包](./03-RootFS配置.md#添加自定义软件包)
-- [系统配置](./03-RootFS配置.md#系统配置)
-- [自定义服务](./03-RootFS配置.md#自定义服务)
-- [修改镜像源](./03-RootFS配置.md#镜像源配置)
-
----
-
-### 场景 4：多版本构建
-
-**问题：** 我想构建多个不同配置的系统
-
-**文档：**
-- [构建指南 - 命令行构建](./02-构建指南.md#命令行构建)
-- [RootFS 配置 - 配置对比](./03-RootFS配置.md#配置对比)
-
-**示例：**
-```bash
-# Ubuntu 22.04 CLI
-sudo ./build.sh -v ubuntu/jammy -t cli -r yes
-
-# Ubuntu 22.04 XFCE
-sudo ./build.sh -v ubuntu/jammy -t xfce -r yes
-
-# Debian 12 CLI
-sudo ./build.sh -v debian/bookworm -t cli -r yes
-```
-
----
-
-### 场景 5：性能优化
-
-**问题：** 构建速度太慢，如何优化？
-
-**文档：**
-- [构建指南 - 性能优化](./02-构建指南.md#性能优化技巧)
-- [常见问题 - 构建速度慢](./04-常见问题.md#q18-构建速度太慢)
-- [环境配置 - 镜像源](./01-环境配置.md#配置国内镜像源可选但推荐)
-
-**优化要点：**
-- 使用国内镜像源
-- 使用 SSD 存储
-- 增加交换空间
-- 并行编译
-- 利用缓存机制
-
----
-
-## 📊 文档统计
-
-| 文档 | 字数 | 阅读时间 | 难度 |
-|------|-----|---------|------|
-| [快速开始](./00-快速开始.md) | ~2000 | 5-10 分钟 | ⭐ 简单 |
-| [环境配置](./01-环境配置.md) | ~2500 | 10-15 分钟 | ⭐⭐ 容易 |
-| [构建指南](./02-构建指南.md) | ~4000 | 20-30 分钟 | ⭐⭐ 容易 |
-| [RootFS 配置](./03-RootFS配置.md) | ~4500 | 25-35 分钟 | ⭐⭐⭐ 中等 |
-| [常见问题](./04-常见问题.md) | ~3500 | 按需查询 | ⭐⭐ 容易 |
-| [目录结构](./05-目录结构.md) | ~3000 | 15-20 分钟 | ⭐⭐⭐ 中等 |
-
----
-
-## 🔍 快速索引
-
-### 常用命令
+### 快速访问
 
 ```bash
-# 交互式构建
-sudo ./build.sh
-
-# CLI 系统
-sudo ./build.sh -b example -v ubuntu/jammy -t cli -r yes
-
-# XFCE 桌面
-sudo ./build.sh -b example -v ubuntu/jammy -t xfce -r yes
-
-# 仅构建内核
-sudo ./build.sh -b example -k linux-6.1 -r no
-
-# 查看帮助
-./build.sh --help
-```
-
-**详细说明：** [构建指南 - 命令行构建](./02-构建指南.md#命令行构建)
-
----
-
-### 常用路径
-
-| 路径 | 说明 |
-|------|------|
-| `build.sh` | 主构建脚本 |
-| `configs/` | 板级配置 |
-| `tools/` | 构建工具 |
-| `rootfs/` | RootFS 配置 |
-| `output/` | 构建输出 |
-| `docs/` | 文档目录 |
-
-**详细说明：** [目录结构](./05-目录结构.md)
-
----
-
-### 配置文件
-
-| 文件 | 用途 |
-|------|------|
-| `configs/example.conf` | 板级配置 |
-| `rootfs/ubuntu/jammy/packages/cli.list` | CLI 软件包列表 |
-| `rootfs/ubuntu/jammy/apt-sources/sources.list` | APT 源配置 |
-| `rootfs/overlays/common/etc/hostname` | 主机名配置 |
-
-**详细说明：** [RootFS 配置](./03-RootFS配置.md)
-
----
-
-## 💡 使用技巧
-
-### 技巧 1：利用缓存加速
-
-RootFS 会自动缓存，二次构建速度提升 5-6 倍！
-
-```bash
-# 首次构建：~30 分钟
-sudo ./build.sh -v ubuntu/jammy -t cli -r yes
-
-# 二次构建：~5 分钟（使用缓存）
-sudo ./build.sh -v ubuntu/jammy -t cli -r yes
+# 查看文档
+cd docs/CN
+less 快速开始.md
 ```
 
 ---
 
-### 技巧 2：使用国内镜像源
+Last updated: 2025-11-10
 
-```bash
-# 使用阿里云镜像（推荐）
-sudo ./build.sh -m https://mirrors.aliyun.com/ubuntu-ports -r yes
-
-# 或使用清华镜像
-sudo ./build.sh -m https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports -r yes
-```
-
-下载速度可提升 5-10 倍！
-
----
-
-### 技巧 3：保存构建日志
-
-```bash
-# 保存日志以便排查问题
-sudo ./build.sh 2>&1 | tee build-$(date +%Y%m%d-%H%M%S).log
-```
-
----
-
-### 技巧 4：并行构建
-
-```bash
-# 使用所有 CPU 核心加速编译
-export MAKEFLAGS="-j$(nproc)"
-sudo -E ./build.sh
-```
-
----
-
-### 技巧 5：分阶段构建
-
-```bash
-# 第一阶段：仅构建内核
-sudo ./build.sh -b example -k linux-6.1 -r no
-
-# 第二阶段：构建 RootFS
-sudo ./build.sh -b example -v ubuntu/jammy -t cli -r yes
-```
-
----
-
-## ❓ 常见问题速查
-
-### 环境问题
-
-- [编译器未找到](./04-常见问题.md#q1-交叉编译器未找到)
-- [mmdebstrap 不存在](./04-常见问题.md#q2-mmdebstrap-命令不存在)
-- [磁盘空间不足](./04-常见问题.md#q4-磁盘空间不足)
-
-### 编译问题
-
-- [内核编译失败](./04-常见问题.md#q5-内核编译失败)
-- [头文件安装慢](./04-常见问题.md#q7-头文件安装时间过长)
-
-### RootFS 问题
-
-- [mmdebstrap 失败](./04-常见问题.md#q8-mmdebstrap-失败)
-- [软件包下载失败](./04-常见问题.md#q9-软件包下载失败)
-- [依赖冲突](./04-常见问题.md#q10-软件包依赖冲突)
-
-### 网络问题
-
-- [DNS 解析失败](./04-常见问题.md#q12-dns-解析失败)
-- [镜像源速度慢](./04-常见问题.md#q14-镜像源速度慢)
-
-### 性能问题
-
-- [构建速度太慢](./04-常见问题.md#q18-构建速度太慢)
-- [内存不足](./04-常见问题.md#q19-内存不足)
-
-**完整列表：** [常见问题文档](./04-常见问题.md)
-
----
-
-## 📞 获取帮助
-
-### 1. 查看文档
-
-大多数问题都可以在文档中找到答案：
-
-- [常见问题](./04-常见问题.md) - 常见问题速查
-- [构建指南](./02-构建指南.md) - 完整构建流程
-- [RootFS 配置](./03-RootFS配置.md) - 系统定制方法
-
-### 2. 查看帮助信息
-
-```bash
-# 主脚本帮助
-./build.sh --help
-
-# RootFS 构建帮助
-./tools/build-rootfs.sh --help
-
-# 内核构建帮助
-./tools/build-kernel.sh --help
-```
-
-### 3. 查看日志
-
-```bash
-# 保存完整日志
-sudo ./build.sh 2>&1 | tee build.log
-
-# 搜索错误
-grep -i "error" build.log
-grep -i "fail" build.log
-```
-
-### 4. 提交 Issue
-
-如果文档无法解决问题，请提交 Issue 并包含：
-
-- 系统版本和环境信息
-- 完整的错误日志
-- 使用的构建命令
-- 已尝试的解决方法
-
----
-
-## 📝 文档更新记录
-
-| 日期 | 版本 | 更新内容 |
-|------|------|---------|
-| 2025-11-06 | 1.0 | 完成文档体系重构和优化 |
-|  |  | 优化内容结构，提升可读性 |
-|  |  | 增加更多实用示例和技巧 |
-|  |  | 完善常见问题解决方案 |
-
----
-
-## 🙏 致谢
-
-本项目参考了 [AvaotaOS](https://github.com/AvaotaSBC/AvaotaOS) 的设计思路和实现方式。
-
----
-
-## 🎉 开始使用
-
-选择你的路径，开始 BSP_T527 之旅吧！
-
-<table>
-<tr>
-<td align="center" width="33%">
-
-### 🚀 新手
-
-[快速开始 →](./00-快速开始.md)
-
-5 分钟快速入门
-
-</td>
-<td align="center" width="33%">
-
-### 📚 学习
-
-[构建指南 →](./02-构建指南.md)
-
-深入了解构建流程
-
-</td>
-<td align="center" width="33%">
-
-### 🔧 定制
-
-[RootFS 配置 →](./03-RootFS配置.md)
-
-打造专属系统
-
-</td>
-</tr>
-</table>
-
----
-
-<div align="center">
-
-**📖 完整文档 · 简单易用 · 功能强大**
-
-**作者：Nopiskl**
-
-[返回主页](../README.md) · [GitHub Issues](../../issues)
-
-</div>

@@ -122,10 +122,10 @@ echo "✗ Failed: ${FAIL_COUNT}"
 echo ""
 
 if [ ${FAIL_COUNT} -eq 0 ]; then
-    echo "🎉 All checks passed!"
+    echo "All checks passed!"
     exit 0
 else
-    echo "⚠️  Some checks failed. Please review the output above."
+    echo "Some checks failed. Please review the output above."
     exit 1
 fi
 
