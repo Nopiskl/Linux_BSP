@@ -1,0 +1,8 @@
+# 此目录存放 U-Boot 自定义配置文件
+# 
+# 支持的格式:
+# - xxx_defconfig (推荐)
+# - xxx.config (完整配置)
+#
+# 使用方法请参考上级目录的 README.md
+

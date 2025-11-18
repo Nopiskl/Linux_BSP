@@ -68,13 +68,13 @@ clean_workspace()
             if [ -w "${OUTPUT_DIR}" ]; then
                 rm -rf "${OUTPUT_DIR}" 2>/dev/null
                 if [ $? -eq 0 ]; then
-                    echo "  ✓ Removed output/"
+                    echo "  [OK] Removed output/"
                 else
-                    echo "  ⚠ Failed to remove output/ (permission denied)"
+                    echo "  [WARN] Failed to remove output/ (permission denied)"
                     echo "  Run: sudo ./build.sh clean --all"
                 fi
             else
-                echo "  ⚠ Output directory requires sudo permissions"
+                echo "  [WARN] Output directory requires sudo permissions"
                 echo "  Run: sudo ./build.sh clean --all"
             fi
         else
@@ -83,10 +83,10 @@ clean_workspace()
             for dir in ${OUTPUT_DIR}/bootloader-* ${OUTPUT_DIR}/*-kernel-pkgs; do
                 if [ -d "$dir" ]; then
                     rm -rf "$dir" 2>/dev/null && {
-                        echo "  ✓ Removed $(basename $dir)"
+                        echo "  [OK] Removed $(basename $dir)"
                         CLEANED=$((CLEANED + 1))
                     } || {
-                        echo "  ⚠ Failed to remove $(basename $dir) (try sudo)"
+                        echo "  [WARN] Failed to remove $(basename $dir) (try sudo)"
                     }
                 fi
             done
@@ -110,7 +110,7 @@ clean_workspace()
         find configs/ -type f \( -name "*.sh" -o -name "*.conf" \) 2>/dev/null | while read -r file; do
             if [ -f "$file" ] && file "$file" | grep -q CRLF; then
                 sed -i 's/\r$//' "$file"
-                echo "  ✓ Fixed $file"
+                echo "  [Fixed] $file"
                 FIXED=$((FIXED + 1))
             fi
         done
@@ -121,7 +121,7 @@ clean_workspace()
         find tools/ -type f -name "*.sh" 2>/dev/null | while read -r file; do
             if [ -f "$file" ] && file "$file" | grep -q CRLF; then
                 sed -i 's/\r$//' "$file"
-                echo "  ✓ Fixed $file"
+                echo "  [Fixed] $file"
                 FIXED=$((FIXED + 1))
             fi
         done
@@ -131,7 +131,7 @@ clean_workspace()
     for script in build.sh cleanup.sh; do
         if [ -f "$script" ] && file "$script" | grep -q CRLF; then
             sed -i 's/\r$//' "$script"
-            echo "  ✓ Fixed $script"
+            echo "  [Fixed] $script"
             FIXED=$((FIXED + 1))
         fi
     done
@@ -435,10 +435,10 @@ show_dialog()
         dialog --clear --shadow --backtitle "BSP Build" --title "System Distribution" \
             --menu "Select Linux distribution:" 20 70 10 \
             "ubuntu/focal" "Ubuntu 20.04 LTS Focal Fossa" \
-            "ubuntu/jammy" "Ubuntu 22.04 LTS Jammy Jellyfish ⭐" \
+            "ubuntu/jammy" "Ubuntu 22.04 LTS Jammy Jellyfish (Recommended)" \
             "ubuntu/noble" "Ubuntu 24.04 LTS Noble Numbat" \
             "debian/bullseye" "Debian 11 Bullseye" \
-            "debian/bookworm" "Debian 12 Bookworm ⭐" \
+            "debian/bookworm" "Debian 12 Bookworm (Recommended)" \
             "debian/trixie" "Debian 13 Trixie (Testing)" \
             2> $tmp
         if [ $? == 1 ]; then
@@ -774,10 +774,10 @@ NEED_FETCH=no
 if [ "${USE_LOCAL}" == "yes" ]; then
     # Check if local sources exist
     if [ ! -d "${WORKSPACE}/linux" ] || [ ! -d "${WORKSPACE}/linux/.git" ]; then
-        echo "⚠ Local sources not found, will fetch automatically."
+        echo "[INFO] Local sources not found, will fetch automatically."
         NEED_FETCH=yes
     else
-        echo "✓ Using local sources"
+        echo "[OK] Using local sources"
         echo "  Kernel source: ${WORKSPACE}/linux"
     fi
 else
@@ -879,12 +879,12 @@ if [ "${BUILD_ROOTFS}" == "yes" ] && [ "${KERNEL_ONLY}" == "no" ]; then
     # 检查是否已存在 rootfs 压缩包（参考 AvaotaOS 的缓存机制）
     if [ -f "${ROOTFS_TARBALL}" ]; then
         echo ""
-        echo "✓ Found existing rootfs tarball, skip build rootfs."
+        echo "[OK] Found existing rootfs tarball, skip build rootfs."
         echo "  File: ${ROOTFS_TARBALL}"
         ls -lh "${ROOTFS_TARBALL}"
         echo ""
-        echo "💡 Tip: To rebuild rootfs, delete the tarball first:"
-        echo "    rm ${ROOTFS_TARBALL}"
+        echo "[TIP] To rebuild rootfs, delete the tarball first:"
+        echo "      rm ${ROOTFS_TARBALL}"
         echo ""
     else
         ROOTFS_TOOL="${TOOLS_DIR}/build-rootfs.sh"
@@ -917,20 +917,20 @@ echo "Build Summary"
 echo "=========================================="
 if [ "${KERNEL_ONLY}" == "no" ]; then
     if [ -d ${WORKSPACE}/bootloader-${BOARD} ]; then
-        echo "✓ Bootloader: ${WORKSPACE}/bootloader-${BOARD}"
+        echo "[OK] Bootloader: ${WORKSPACE}/bootloader-${BOARD}"
         ls -lh ${WORKSPACE}/bootloader-${BOARD}/* 2>/dev/null | head -5
     fi
 fi
 
 if [ -d ${WORKSPACE}/${BOARD}-kernel-pkgs ]; then
-    echo "✓ Kernel packages: ${WORKSPACE}/${BOARD}-kernel-pkgs"
+    echo "[OK] Kernel packages: ${WORKSPACE}/${BOARD}-kernel-pkgs"
     ls -lh ${WORKSPACE}/${BOARD}-kernel-pkgs/*.deb 2>/dev/null | head -5
 fi
 
 if [ "${BUILD_ROOTFS}" == "yes" ]; then
     ROOTFS_TARBALL=$(ls -t ${WORKSPACE}/rootfs-*.tar.gz 2>/dev/null | head -1)
     if [ -n "${ROOTFS_TARBALL}" ]; then
-        echo "✓ RootFS tarball: ${ROOTFS_TARBALL}"
+        echo "[OK] RootFS tarball: ${ROOTFS_TARBALL}"
         ls -lh "${ROOTFS_TARBALL}"
     fi
 fi

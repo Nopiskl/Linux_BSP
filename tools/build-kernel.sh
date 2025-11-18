@@ -133,7 +133,7 @@ compile_linux()
     
     # 优先级 0: 检查是否有用户自定义配置（最高优先级，用于保存 menuconfig 结果）
     if [ -f "${WORKSPACE}/user_defconfig" ];then
-        echo "✓ Found: user_defconfig (from previous menuconfig)"
+        echo "Found: user_defconfig (from previous menuconfig)"
         cp "${WORKSPACE}/user_defconfig" .config
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
         CONFIG_FOUND=yes
@@ -141,16 +141,16 @@ compile_linux()
         
     # 优先级 1: 查找 target/defconfig/${LINUX_CONFIG}
     elif [ -f "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}" ];then
-        echo "✓ Found: target/defconfig/${LINUX_CONFIG}"
+        echo "cannot find user_defconfig (from previous menuconfig), use target/defconfig/${LINUX_CONFIG}"
         # 复制到内核源码的 configs 目录
         cp "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}" arch/${ARCH}/configs/
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}
         CONFIG_FOUND=yes
         CONFIG_SOURCE="target/defconfig/${LINUX_CONFIG}"
-        
+       
     # 优先级 2: 查找 target/defconfig/${LINUX_CONFIG}.config
     elif [ -f "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config" ];then
-        echo "✓ Found: target/defconfig/${LINUX_CONFIG}.config"
+        echo "cannot find user_defconfig or target/defconfig/${LINUX_CONFIG}, use target/defconfig/${LINUX_CONFIG}.config"
         cp "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config" .config
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
         CONFIG_FOUND=yes
@@ -158,14 +158,14 @@ compile_linux()
         
     # 优先级 3: 使用内核源码中的 defconfig
     elif [ -f "arch/${ARCH}/configs/${LINUX_CONFIG}" ];then
-        echo "✓ Found: arch/${ARCH}/configs/${LINUX_CONFIG} (kernel source)"
+         echo "cannot find user_defconfig, target/defconfig/${LINUX_CONFIG}, or target/defconfig/${LINUX_CONFIG}.config, use arch/${ARCH}/configs/${LINUX_CONFIG} (kernel source)"
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}
         CONFIG_FOUND=yes
         CONFIG_SOURCE="arch/${ARCH}/configs/${LINUX_CONFIG}"
         
     # 优先级 4: 检查是否已有 .config
     elif [ -f ".config" ];then
-        echo "⚠ Using existing .config in kernel source directory"
+        echo "cannot find board defconfig, using existing .config in kernel source directory"
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
         CONFIG_FOUND=yes
         CONFIG_SOURCE="existing .config"
@@ -183,7 +183,6 @@ compile_linux()
         echo "  5. .config (in kernel source)"
         echo ""
         echo "Please create a configuration file in one of these locations."
-        echo "See: configs/target/README.md for details."
         echo "=========================================="
         exit 1
     fi
@@ -197,8 +196,8 @@ compile_linux()
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} menuconfig
         # 保存用户配置
         cp .config "${WORKSPACE}/user_defconfig"
-        echo "✓ Configuration saved to: ${WORKSPACE}/user_defconfig"
-        echo "  (This will be used in future builds with highest priority)"
+        echo "Configuration saved to: ${WORKSPACE}/user_defconfig"
+        echo "(This will be used in future builds with highest priority)"
         echo ""
     fi
     
@@ -220,7 +219,7 @@ compile_linux()
     }
     
     echo ""
-    echo "✓ Kernel compilation completed successfully"
+    echo "Kernel compilation completed successfully"
     echo ""
     
     # 准备 deb-data 目录

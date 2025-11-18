@@ -36,9 +36,10 @@ show_cn_menu() {
     echo "  1. 快速开始 (快速开始.md)"
     echo "  2. 板型配置 (板型配置.md)"
     echo "  3. 内核配置 (内核配置.md)"
-    echo "  4. RootFS配置 (RootFS配置.md)"
-    echo "  5. 常见问题 (常见问题.md)"
-    echo "  6. 目录结构 (目录结构.md)"
+    echo "  4. Bootloader构建 (Bootloader构建.md)"
+    echo "  5. RootFS配置 (RootFS配置.md)"
+    echo "  6. 常见问题 (常见问题.md)"
+    echo "  7. 目录结构 (目录结构.md)"
     echo ""
     echo "  b. Back to main menu (返回主菜单)"
     echo "  q. Quit (退出)"
@@ -54,9 +55,10 @@ show_en_menu() {
     echo "  1. Quick Start (Quick-Start.md)"
     echo "  2. Board Configuration (Board-Configuration.md)"
     echo "  3. Kernel Configuration (Kernel-Configuration.md)"
-    echo "  4. RootFS Configuration (RootFS-Configuration.md)"
-    echo "  5. FAQ (FAQ.md)"
-    echo "  6. Directory Structure (Directory-Structure.md)"
+    echo "  4. Bootloader Build (Bootloader-Build.md)"
+    echo "  5. RootFS Configuration (RootFS-Configuration.md)"
+    echo "  6. FAQ (FAQ.md)"
+    echo "  7. Directory Structure (Directory-Structure.md)"
     echo ""
     echo "  b. Back to main menu (返回主菜单)"
     echo "  q. Quit (退出)"
@@ -100,7 +102,7 @@ cn_docs_menu() {
         show_header
         show_cn_menu
         
-        echo -n "Select document (1-6, b, q): "
+        echo -n "Select document (1-7, b, q): "
         read choice
         
         case $choice in
@@ -114,12 +116,15 @@ cn_docs_menu() {
                 open_doc "${CN_DIR}/内核配置.md" "内核配置.md"
                 ;;
             4)
-                open_doc "${CN_DIR}/RootFS配置.md" "RootFS配置.md"
+                open_doc "${CN_DIR}/Bootloader构建.md" "Bootloader构建.md"
                 ;;
             5)
-                open_doc "${CN_DIR}/常见问题.md" "常见问题.md"
+                open_doc "${CN_DIR}/RootFS配置.md" "RootFS配置.md"
                 ;;
             6)
+                open_doc "${CN_DIR}/常见问题.md" "常见问题.md"
+                ;;
+            7)
                 open_doc "${CN_DIR}/目录结构.md" "目录结构.md"
                 ;;
             b|B)
@@ -147,7 +152,7 @@ en_docs_menu() {
         show_header
         show_en_menu
         
-        echo -n "Select document (1-6, b, q): "
+        echo -n "Select document (1-7, b, q): "
         read choice
         
         case $choice in
@@ -161,12 +166,15 @@ en_docs_menu() {
                 open_doc "${EN_DIR}/Kernel-Configuration.md" "Kernel-Configuration.md"
                 ;;
             4)
-                open_doc "${EN_DIR}/RootFS-Configuration.md" "RootFS-Configuration.md"
+                open_doc "${EN_DIR}/Bootloader-Build.md" "Bootloader-Build.md"
                 ;;
             5)
-                open_doc "${EN_DIR}/FAQ.md" "FAQ.md"
+                open_doc "${EN_DIR}/RootFS-Configuration.md" "RootFS-Configuration.md"
                 ;;
             6)
+                open_doc "${EN_DIR}/FAQ.md" "FAQ.md"
+                ;;
+            7)
                 open_doc "${EN_DIR}/Directory-Structure.md" "Directory-Structure.md"
                 ;;
             b|B)

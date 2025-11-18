@@ -1,100 +1,176 @@
-# BSP_T527 Documentation / 文档
+# BSP_T527 Documentation
 
-[English](#english) | [中文](#中文)
+## 文档索引 / Documentation Index
+
+本项目提供完整的中英文文档。  
+This project provides complete bilingual documentation.
 
 ---
 
-## English
+## 中文文档 / Chinese Documentation
 
-Complete documentation for BSP build system.
+位于 `docs/CN/` 目录：
 
-### Documentation
+### 基础入门
+1. [快速开始](CN/快速开始.md) - 快速上手指南
+2. [板型配置](CN/板型配置.md) - 板型配置文件说明
+3. [目录结构](CN/目录结构.md) - 项目目录结构说明
 
-**[Quick Start](./EN/Quick-Start.md)** - Get started in 5 minutes
-- Install dependencies
-- Start building
-- View output
+### 构建指南
+4. [内核配置](CN/内核配置.md) - Linux 内核构建配置
+5. [Bootloader构建](CN/Bootloader构建.md) - U-Boot 启动加载器构建
+6. [RootFS配置](CN/RootFS配置.md) - 根文件系统构建
 
-**[Board Configuration](./EN/Board-Configuration.md)** - Board configuration guide
-- Basic configuration
-- Kernel setup
-- Bootloader setup
+### 参考资料
+7. [常见问题](CN/常见问题.md) - 常见问题解答
 
-**[Kernel Configuration](./EN/Kernel-Configuration.md)** - Kernel and device tree
-- defconfig management
-- Device tree configuration
-- Configuration search order
+---
 
-**[RootFS Configuration](./EN/RootFS-Configuration.md)** - Root filesystem customization
-- Supported distributions
-- Package management
-- Overlay system
+## English Documentation
 
-**[FAQ](./EN/FAQ.md)** - Troubleshooting
-- Build errors
-- Configuration issues
-- Performance optimization
+Located in `docs/EN/` directory:
 
-**[Directory Structure](./EN/Directory-Structure.md)** - Project organization
-- Directory descriptions
-- File purposes
-- Configuration locations
+### Getting Started
+1. [Quick Start](EN/Quick-Start.md) - Quick start guide
+2. [Board Configuration](EN/Board-Configuration.md) - Board configuration file guide
+3. [Directory Structure](EN/Directory-Structure.md) - Project directory structure
 
-### Quick Access
+### Build Guide
+4. [Kernel Configuration](EN/Kernel-Configuration.md) - Linux kernel build configuration
+5. [Bootloader Build](EN/Bootloader-Build.md) - U-Boot bootloader build
+6. [RootFS Configuration](EN/RootFS-Configuration.md) - Root filesystem build
+
+### Reference
+7. [FAQ](EN/FAQ.md) - Frequently asked questions
+
+---
+
+## 快速访问 / Quick Access
+
+### 查看文档 / View Documentation
 
 ```bash
-# View documentation
-cd docs/EN
-less Quick-Start.md
+# 交互式文档查看器
+./build.sh docs
+# 或
+bash docs/view-docs.sh
+
+# 直接阅读文档
+cd docs/CN && less 快速开始.md
+cd docs/EN && less Quick-Start.md
+```
+
+### 快速构建 / Quick Build
+
+```bash
+# 基本构建
+./build.sh -b myboard
+
+# 查看帮助
+./build.sh -h
 ```
 
 ---
 
-## 中文
+## 支持的平台 / Supported Platforms
 
-BSP 构建系统完整文档。
+### Allwinner
+- H6, H616, H618
+- A64, A100
+- T527, T507
 
-### 文档列表
+### Rockchip
+- RK3588, RK3588S
+- RK3568, RK3566
+- RK3399
 
-**[快速开始](./CN/快速开始.md)** - 5分钟快速上手
-- 安装依赖
-- 启动构建
-- 查看产物
+---
 
-**[板型配置](./CN/板型配置.md)** - 板型配置说明
-- 基本配置
-- 内核设置
-- Bootloader 设置
+## 文档组织 / Documentation Structure
 
-**[内核配置](./CN/内核配置.md)** - 内核和设备树
-- defconfig 管理
-- 设备树配置
-- 配置查找顺序
-
-**[RootFS配置](./CN/RootFS配置.md)** - 根文件系统定制
-- 支持的发行版
-- 软件包管理
-- 覆盖系统
-
-**[常见问题](./CN/常见问题.md)** - 问题排查
-- 构建错误
-- 配置问题
-- 性能优化
-
-**[目录结构](./CN/目录结构.md)** - 项目组织
-- 目录说明
-- 文件作用
-- 配置位置
-
-### 快速访问
-
-```bash
-# 查看文档
-cd docs/CN
-less 快速开始.md
+```
+docs/
+├── README.md              # 本文件 / This file
+├── view-docs.sh          # 交互式查看器 / Interactive viewer
+│
+├── CN/                   # 中文文档 / Chinese docs
+│   ├── 快速开始.md
+│   ├── 板型配置.md
+│   ├── 内核配置.md
+│   ├── Bootloader构建.md
+│   ├── RootFS配置.md
+│   ├── 常见问题.md
+│   └── 目录结构.md
+│
+└── EN/                   # 英文文档 / English docs
+    ├── Quick-Start.md
+    ├── Board-Configuration.md
+    ├── Kernel-Configuration.md
+    ├── Bootloader-Build.md
+    ├── RootFS-Configuration.md
+    ├── FAQ.md
+    └── Directory-Structure.md
 ```
 
 ---
 
-Last updated: 2025-11-10
+## 主要特性 / Key Features
 
+### 多级配置管理
+- Defconfig 5级优先级查找
+- DTS 灵活部署和复用
+- 支持 menuconfig 交互配置
+
+### 多厂商支持
+- Allwinner (sunxi-uboot)
+- Rockchip (rockchip-uboot)
+- 统一的构建接口
+
+### 开发工具
+- ccache 加速编译
+- 补丁管理系统
+- 完善的错误提示
+
+---
+
+## 参考资料 / References
+
+- [U-Boot 官方文档](https://www.denx.de/wiki/U-Boot)
+- [Linux 内核文档](https://www.kernel.org/doc/)
+- [ARM Trusted Firmware](https://trustedfirmware-a.readthedocs.io/)
+- [Debian 根文件系统](https://www.debian.org/)
+- [Ubuntu 根文件系统](https://ubuntu.com/)
+
+---
+
+## 获取帮助 / Get Help
+
+### 构建问题
+1. 查看对应的构建文档
+2. 检查常见问题文档
+3. 查看脚本的详细错误信息
+
+### 配置问题
+1. 参考 `configs/board/example.conf` 示例
+2. 查看板型配置文档
+3. 检查配置文件语法
+
+---
+
+## 贡献 / Contributing
+
+欢迎贡献代码和文档！  
+Contributions are welcome!
+
+项目地址 / Project Repository:
+- GitHub: [BSP_T527](https://github.com/your-repo/BSP_T527)
+
+---
+
+## 许可证 / License
+
+GPL-3.0
+
+---
+
+**享受 BSP 开发！ / Happy BSP Development!**

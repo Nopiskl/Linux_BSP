@@ -124,41 +124,14 @@ clone_linux()
     fi
     
     if [ -d ${WORKSPACE}/linux/.git ]; then
-        echo "✓ Linux kernel source ready"
+        echo "Linux kernel source ready"
         return 0
     else
-        echo "✗ Failed to fetch Linux kernel"
+        echo "Failed to fetch Linux kernel"
         return 1
     fi
 }
 
-# Clone SyterKit bootloader
-clone_syterkit()
-{
-    echo "=========================================="
-    echo "Fetching SyterKit Bootloader"
-    echo "=========================================="
-    
-    if [ -d ${WORKSPACE}/${BL_CONFIG} ]; then
-        echo "SyterKit directory exists, updating..."
-        pushd ${WORKSPACE}/${BL_CONFIG} > /dev/null
-        rm -rf build-${BOARD}
-        git pull
-        popd > /dev/null
-    else
-        echo "Cloning SyterKit..."
-        cd ${WORKSPACE}
-        git clone --depth=1 ${SYTERKIT_REPO} -b ${SYTERKIT_BRANCH} ${BL_CONFIG}
-    fi
-    
-    if [ -d ${WORKSPACE}/${BL_CONFIG} ]; then
-        echo "✓ SyterKit source ready"
-        return 0
-    else
-        echo "✗ Failed to fetch SyterKit"
-        return 1
-    fi
-}
 
 # Clone ARM Trusted Firmware
 clone_atf()
@@ -179,10 +152,10 @@ clone_atf()
     fi
     
     if [ -d ${WORKSPACE}/atf ]; then
-        echo "✓ ATF source ready"
+        echo "[OK] ATF source ready"
         return 0
     else
-        echo "✗ Failed to fetch ATF"
+        echo "[ERROR] Failed to fetch ATF"
         return 1
     fi
 }
@@ -211,10 +184,10 @@ clone_rkbin()
     fi
     
     if [ -d ${WORKSPACE}/rkbin ]; then
-        echo "✓ rkbin source ready"
+        echo "rkbin source ready"
         return 0
     else
-        echo "✗ Failed to fetch rkbin"
+        echo "Failed to fetch rkbin"
         return 1
     fi
 }
@@ -238,10 +211,10 @@ clone_uboot()
     fi
     
     if [ -d ${WORKSPACE}/${BL_CONFIG} ]; then
-        echo "✓ U-Boot source ready"
+        echo "U-Boot source ready"
         return 0
     else
-        echo "✗ Failed to fetch U-Boot"
+        echo "Failed to fetch U-Boot"
         return 1
     fi
 }
@@ -288,9 +261,7 @@ fi
 
 echo "Source Repositories:"
 echo "  Linux: ${LINUX_REPO} (${LINUX_BRANCH})"
-if [ "${BL_CONFIG}" == "sunxi-syterkit" ]; then
-    echo "  Bootloader: ${SYTERKIT_REPO} (${SYTERKIT_BRANCH})"
-elif [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
     echo "  U-Boot: ${UBOOT_REPO} (${UBOOT_BRANCH})"
     echo "  ATF: ${ATF_REPO} (${ATF_BRANCH})"
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
@@ -302,9 +273,7 @@ fi
 echo ""
 
 # Fetch bootloader sources
-if [ "${BL_CONFIG}" == "sunxi-syterkit" ]; then
-    clone_syterkit || exit 1
-elif [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
     clone_atf || exit 1
     clone_uboot || exit 1
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
@@ -317,6 +286,10 @@ elif [ "${BL_CONFIG}" == "custom" ]; then
     echo "Skipping automatic bootloader fetch."
     echo "Please ensure your bootloader is ready manually."
     echo ""
+else
+    echo "ERROR: Unknown bootloader type: ${BL_CONFIG}"
+    echo "Supported types: sunxi-uboot, rockchip-uboot, custom"
+    exit 1
 fi
 
 # Fetch kernel sources
@@ -329,19 +302,17 @@ echo "Source Fetch Summary"
 echo "=========================================="
 
 if [ ! -d ${WORKSPACE}/linux/.git ]; then
-    echo "✗ Linux kernel source not available"
+    echo "Linux kernel source not available"
     echo "ERROR: Fetch sources failed, please check your network connection."
     exit 2
 fi
 
-echo "✓ All required sources fetched successfully"
+echo "All required sources fetched successfully"
 echo ""
 echo "Workspace: ${WORKSPACE}"
 echo "  - Linux kernel: ${WORKSPACE}/linux"
 
-if [ "${BL_CONFIG}" == "sunxi-syterkit" ]; then
-    echo "  - SyterKit: ${WORKSPACE}/${BL_CONFIG}"
-elif [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
     echo "  - U-Boot: ${WORKSPACE}/${BL_CONFIG}"
     echo "  - ATF: ${WORKSPACE}/atf"
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
