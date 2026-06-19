@@ -627,7 +627,7 @@ show_config(){
     echo "| Clean=${CLEAN}"
     echo "| LinuxRepo=${LINUX_REPO:-unknown}"
     echo "| LinuxBranch=${LINUX_BRANCH:-unknown}"
-    echo "| LinuxConfig=${LINUX_CONFIG:-unknown}"
+    echo "| KernelDefconfig=${KERNEL_DEFCONFIG:-unknown}"
     echo "+-------------------------------"
     if [ "${BUILD_ROOTFS}" == "yes" ]; then
         echo "+-------[ RootFS Config ]-------"
@@ -740,6 +740,8 @@ if [ "${KERNEL_TARGET}" != "bsp" ]; then
     source "${CONFIG_FILE}"
 fi
 
+TARGET_BOARD="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+
 check_deps
 show_config
 
@@ -834,7 +836,7 @@ echo "=========================================="
 echo "Step 3: Building kernel..."
 echo "=========================================="
 if [[ -f ${WORKSPACE}/${BOARD}-kernel-pkgs/.done && \
-    $(cat ${WORKSPACE}/${BOARD}-kernel-pkgs/.done) == "${LINUX_CONFIG}" ]]; then
+    $(cat ${WORKSPACE}/${BOARD}-kernel-pkgs/.done) == "${KERNEL_DEFCONFIG}" ]]; then
     echo "Kernel packages already built, skipping."
 else
     KERNEL_TOOL="${TOOLS_DIR}/build-kernel.sh"
@@ -938,4 +940,3 @@ fi
 echo ""
 echo "Build completed successfully!"
 echo "Output: ${WORKSPACE}"
-

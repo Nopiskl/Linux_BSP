@@ -106,6 +106,45 @@ patch_kernel()
     fi
 }
 
+deploy_kernel_dts()
+{
+    local kernel_dts="${KERNEL_DTS}"
+
+    if [ -z "${kernel_dts}" ]; then
+        return 0
+    fi
+
+    local target_board="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+    local source_file="${BASE_DIR}/configs/target/${target_board}/kernel.dts"
+    local target_file="${WORKSPACE}/linux/arch/${ARCH}/boot/dts/${kernel_dts}.dts"
+    local target_dir
+
+    if [ -f "${source_file}" ]; then
+        if [ -s "${source_file}" ]; then
+            target_dir="$(dirname "${target_file}")"
+            mkdir -p "${target_dir}"
+            cp "${source_file}" "${target_file}"
+            echo "Deployed kernel DTS: ${source_file} -> ${target_file}"
+            return 0
+        fi
+        echo "Target kernel DTS exists but is empty: ${source_file}"
+        echo "Falling back to kernel source DTS: arch/${ARCH}/boot/dts/${kernel_dts}.dts"
+    else
+        echo "Target kernel DTS not found: ${source_file}"
+        echo "Falling back to kernel source DTS: arch/${ARCH}/boot/dts/${kernel_dts}.dts"
+    fi
+
+    if [ ! -s "${source_file}" ]; then
+        if [ -f "${target_file}" ]; then
+            echo "Kernel DTS found in source tree: arch/${ARCH}/boot/dts/${kernel_dts}.dts"
+        else
+            echo "WARNING: Kernel DTS not found: ${kernel_dts}.dts"
+            echo "         Checked configs/target/${target_board}/kernel.dts and kernel source tree"
+        fi
+        return 0
+    fi
+}
+
 # 编译内核
 compile_linux()
 {
@@ -121,49 +160,52 @@ compile_linux()
     cd "${WORKSPACE}/linux"
     
     # 定义 target 目录
-    TARGET_DEFCONFIG_DIR="${BASE_DIR}/configs/target/defconfig"
+    TARGET_BOARD="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+    TARGET_DEFCONFIG="${BASE_DIR}/configs/target/${TARGET_BOARD}/kernel_defconfig"
     
     # 多级查找 defconfig（按照优先级顺序）
     CONFIG_FOUND=no
     CONFIG_SOURCE=""
     
     echo "Searching for kernel configuration..."
-    echo "  Target config: ${LINUX_CONFIG}"
+    echo "  Target board: ${TARGET_BOARD}"
+    echo "  Target config: ${KERNEL_DEFCONFIG}"
     echo ""
     
-    # 优先级 0: 检查是否有用户自定义配置（最高优先级，用于保存 menuconfig 结果）
-    if [ -f "${WORKSPACE}/user_defconfig" ];then
+    # 优先级 0: 查找 configs/target/${TARGET_BOARD}/kernel_defconfig
+    if [ -f "${TARGET_DEFCONFIG}" ];then
+        if [ -s "${TARGET_DEFCONFIG}" ]; then
+            echo "Found: configs/target/${TARGET_BOARD}/kernel_defconfig"
+            cp "${TARGET_DEFCONFIG}" .config
+            ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
+            CONFIG_FOUND=yes
+            CONFIG_SOURCE="configs/target/${TARGET_BOARD}/kernel_defconfig"
+        else
+            echo "Target kernel defconfig exists but is empty: ${TARGET_DEFCONFIG}"
+            echo "Falling back to kernel source defconfig: arch/${ARCH}/configs/${KERNEL_DEFCONFIG}"
+        fi
+    else
+        echo "Target kernel defconfig not found: ${TARGET_DEFCONFIG}"
+        echo "Falling back to kernel source defconfig: arch/${ARCH}/configs/${KERNEL_DEFCONFIG}"
+    fi
+
+    if [ "${CONFIG_FOUND}" != "yes" ]; then
+    # 优先级 1: 使用内核源码中的 defconfig
+    if [ -n "${KERNEL_DEFCONFIG}" ] && [ -f "arch/${ARCH}/configs/${KERNEL_DEFCONFIG}" ];then
+        echo "No non-empty target kernel_defconfig, use arch/${ARCH}/configs/${KERNEL_DEFCONFIG} (kernel source)"
+        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${KERNEL_DEFCONFIG}
+        CONFIG_FOUND=yes
+        CONFIG_SOURCE="arch/${ARCH}/configs/${KERNEL_DEFCONFIG}"
+
+    # 优先级 2: 检查是否有用户自定义配置（menuconfig 保存的配置）
+    elif [ -f "${WORKSPACE}/user_defconfig" ];then
         echo "Found: user_defconfig (from previous menuconfig)"
         cp "${WORKSPACE}/user_defconfig" .config
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
         CONFIG_FOUND=yes
         CONFIG_SOURCE="user_defconfig"
         
-    # 优先级 1: 查找 target/defconfig/${LINUX_CONFIG}
-    elif [ -f "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}" ];then
-        echo "cannot find user_defconfig (from previous menuconfig), use target/defconfig/${LINUX_CONFIG}"
-        # 复制到内核源码的 configs 目录
-        cp "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}" arch/${ARCH}/configs/
-        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}
-        CONFIG_FOUND=yes
-        CONFIG_SOURCE="target/defconfig/${LINUX_CONFIG}"
-       
-    # 优先级 2: 查找 target/defconfig/${LINUX_CONFIG}.config
-    elif [ -f "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config" ];then
-        echo "cannot find user_defconfig or target/defconfig/${LINUX_CONFIG}, use target/defconfig/${LINUX_CONFIG}.config"
-        cp "${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config" .config
-        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
-        CONFIG_FOUND=yes
-        CONFIG_SOURCE="target/defconfig/${LINUX_CONFIG}.config"
-        
-    # 优先级 3: 使用内核源码中的 defconfig
-    elif [ -f "arch/${ARCH}/configs/${LINUX_CONFIG}" ];then
-         echo "cannot find user_defconfig, target/defconfig/${LINUX_CONFIG}, or target/defconfig/${LINUX_CONFIG}.config, use arch/${ARCH}/configs/${LINUX_CONFIG} (kernel source)"
-        ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} ${LINUX_CONFIG}
-        CONFIG_FOUND=yes
-        CONFIG_SOURCE="arch/${ARCH}/configs/${LINUX_CONFIG}"
-        
-    # 优先级 4: 检查是否已有 .config
+    # 优先级 3: 检查是否已有 .config
     elif [ -f ".config" ];then
         echo "cannot find board defconfig, using existing .config in kernel source directory"
         ${MAKE} ARCH=${ARCH} CROSS_COMPILE=${KERNEL_GCC} olddefconfig
@@ -176,15 +218,15 @@ compile_linux()
         echo "ERROR: No kernel configuration found!"
         echo "=========================================="
         echo "Searched locations (in order):"
-        echo "  1. ${WORKSPACE}/user_defconfig"
-        echo "  2. ${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}"
-        echo "  3. ${TARGET_DEFCONFIG_DIR}/${LINUX_CONFIG}.config"
-        echo "  4. arch/${ARCH}/configs/${LINUX_CONFIG}"
-        echo "  5. .config (in kernel source)"
+        echo "  1. ${TARGET_DEFCONFIG}"
+        echo "  2. arch/${ARCH}/configs/${KERNEL_DEFCONFIG}"
+        echo "  3. ${WORKSPACE}/user_defconfig"
+        echo "  4. .config (in kernel source)"
         echo ""
         echo "Please create a configuration file in one of these locations."
         echo "=========================================="
         exit 1
+    fi
     fi
     
     echo "  Config source: ${CONFIG_SOURCE}"
@@ -578,15 +620,18 @@ fi
 echo "Loading configuration: ${BOARD}"
 source "${CONFIG_FILE}"
 
+TARGET_BOARD="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+
 echo "Configuration:"
 echo "  Board: ${BOARD_NAME}"
 echo "  Architecture: ${ARCH}"
 echo "  Cross-compiler: ${KERNEL_GCC}"
-echo "  Linux config: ${LINUX_CONFIG}"
+echo "  Kernel defconfig: ${KERNEL_DEFCONFIG}"
+echo "  Target board: ${TARGET_BOARD}"
 echo ""
 
 # 生成包名
-kconfig_name=${LINUX_CONFIG%_defconfig}
+kconfig_name=${KERNEL_DEFCONFIG%_defconfig}
 PKG_NAME=${kconfig_name//_/-}
 PACKAGES_OUTPUT_PATH="${WORKSPACE}/${BOARD}-kernel-pkgs"
 
@@ -626,24 +671,27 @@ if [ "${LINUX_PATHDIR}" != "none" ];then
     patch_kernel "${LINUX_PATHDIR}" "${WORKSPACE}/linux"
 fi
 
-# 2. 编译内核
+# 2. 部署板级 DTS（如果 configs/target 中提供）
+deploy_kernel_dts
+
+# 3. 编译内核
 compile_linux
 
-# 3. 安装各个组件
+# 4. 安装各个组件
 install_dtb
 install_image_modules
 install_headers
 install_libc_dev
 
-# 4. 生成 Debian 包控制文件
+# 5. 生成 Debian 包控制文件
 gen_debian_files
 gen_package_docs
 
-# 5. 打包成 .deb
+# 6. 打包成 .deb
 pack_kernel_packages
 
-# 6. 创建完成标记
-echo "${LINUX_CONFIG}" > "${PACKAGES_OUTPUT_PATH}/.done"
+# 7. 创建完成标记
+echo "${KERNEL_DEFCONFIG}" > "${PACKAGES_OUTPUT_PATH}/.done"
 
 echo ""
 echo "=========================================="

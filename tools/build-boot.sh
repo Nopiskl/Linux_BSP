@@ -100,6 +100,89 @@ patch_uboot()
     fi
 }
 
+is_mainline_uboot()
+{
+    [ "${BL_CONFIG}" = "mainline-uboot" ] || [ "${BL_CONFIG}" = "sunxi-uboot" ]
+}
+
+find_uboot_dts_file()
+{
+    local uboot_dts=$1
+    local source_root="${WORKSPACE}/${BL_CONFIG}"
+    local dts_basename
+    dts_basename="$(basename "${uboot_dts}")"
+
+    local candidates=(
+        "${source_root}/dts/upstream/src/${UBOOT_ARCH}/${uboot_dts}.dts"
+        "${source_root}/dts/upstream/src/arm64/${uboot_dts}.dts"
+        "${source_root}/dts/upstream/src/arm/${uboot_dts}.dts"
+        "${source_root}/arch/arm/dts/${uboot_dts}.dts"
+        "${source_root}/arch/arm/dts/${dts_basename}.dts"
+    )
+
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        if [ -f "${candidate}" ]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done
+
+    if [ -d "${source_root}/dts/upstream/src/${UBOOT_ARCH}" ]; then
+        echo "${source_root}/dts/upstream/src/${UBOOT_ARCH}/${uboot_dts}.dts"
+    elif [ -d "${source_root}/dts/upstream/src/arm64" ]; then
+        echo "${source_root}/dts/upstream/src/arm64/${uboot_dts}.dts"
+    else
+        echo "${source_root}/arch/arm/dts/${uboot_dts}.dts"
+    fi
+}
+
+format_uboot_dts_path()
+{
+    local full_path=$1
+    local source_root="${WORKSPACE}/${BL_CONFIG}/"
+    echo "${full_path#${source_root}}"
+}
+
+deploy_uboot_dts()
+{
+    local uboot_dts="${UBOOT_DTS}"
+
+    if [ -z "${uboot_dts}" ]; then
+        return 0
+    fi
+
+    local target_board="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+    local source_file="${BASE_DIR}/configs/target/${target_board}/uboot.dts"
+    local target_file
+    target_file="$(find_uboot_dts_file "${uboot_dts}")"
+    local target_dir
+
+    if [ -f "${source_file}" ]; then
+        if [ -s "${source_file}" ]; then
+            target_dir="$(dirname "${target_file}")"
+            mkdir -p "${target_dir}"
+            cp "${source_file}" "${target_file}"
+            echo "Deployed U-Boot DTS: ${source_file} -> ${target_file}"
+            return 0
+        fi
+        echo "Target U-Boot DTS exists but is empty: ${source_file}"
+        echo "Falling back to U-Boot source DTS: $(format_uboot_dts_path "${target_file}")"
+    else
+        echo "Target U-Boot DTS not found: ${source_file}"
+        echo "Falling back to U-Boot source DTS: $(format_uboot_dts_path "${target_file}")"
+    fi
+
+    if [ ! -s "${source_file}" ]; then
+        if [ -f "${target_file}" ]; then
+            echo "U-Boot DTS found in source tree: $(format_uboot_dts_path "${target_file}")"
+        else
+            echo "Notice: No board-specific U-Boot DTS override for ${uboot_dts}"
+        fi
+        return 0
+    fi
+}
+
 # 编译 ARM Trusted Firmware (ATF)
 compile_atf()
 {
@@ -119,19 +202,19 @@ compile_atf()
     echo "Cleaning ATF build directory..."
     make distclean 2>/dev/null || true
     
-    # 从 BL_CONF 自动推断 ATF 平台
+    # 从 UBOOT_DEFCONFIG 自动推断 ATF 平台
     if [ -n "${ATF_PLAT}" ]; then
         # 配置文件中显式指定（高级用法）
         echo "Using ATF_PLAT from config: ${ATF_PLAT}"
     else
         # 自动推断（推荐方式）
-        if [[ "${BL_CONF}" == *"h618"* ]] || [[ "${BL_CONF}" == *"h616"* ]]; then
+        if [[ "${UBOOT_DEFCONFIG}" == *"h618"* ]] || [[ "${UBOOT_DEFCONFIG}" == *"h616"* ]]; then
             ATF_PLAT="sun50i_h616"
-        elif [[ "${BL_CONF}" == *"h6"* ]]; then
+        elif [[ "${UBOOT_DEFCONFIG}" == *"h6"* ]]; then
             ATF_PLAT="sun50i_h6"
-        elif [[ "${BL_CONF}" == *"a64"* ]]; then
+        elif [[ "${UBOOT_DEFCONFIG}" == *"a64"* ]]; then
             ATF_PLAT="sun50i_a64"
-        elif [[ "${BL_CONF}" == *"t527"* ]] || [[ "${BL_CONF}" == *"t507"* ]]; then
+        elif [[ "${UBOOT_DEFCONFIG}" == *"t527"* ]] || [[ "${UBOOT_DEFCONFIG}" == *"t507"* ]]; then
             ATF_PLAT="sun50i_h616"  # T527 使用 H616 平台
         else
             ATF_PLAT="sun50i_h616"  # 默认平台
@@ -202,7 +285,8 @@ compile_uboot()
     fi
     
     # 定义 target 目录
-    TARGET_DEFCONFIG_DIR="${BASE_DIR}/configs/target/defconfig/uboot"
+    TARGET_BOARD="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+    TARGET_DEFCONFIG="${BASE_DIR}/configs/target/${TARGET_BOARD}/uboot_defconfig"
     
     # 多级查找 defconfig（按照优先级顺序）
     CONFIG_FOUND=no
@@ -210,41 +294,43 @@ compile_uboot()
     UBOOT_PWD=$(pwd)
     
     echo "Searching for U-Boot configuration..."
-    echo "  Target config: ${BL_CONF}"
+    echo "  Target board: ${TARGET_BOARD}"
+    echo "  Target config: ${UBOOT_DEFCONFIG}"
     echo "  U-Boot source: ${UBOOT_PWD}"
     echo ""
     
-    # 优先级 0: 检查是否有用户自定义配置（最高优先级，用于保存 menuconfig 结果）
-    if [ -f "${WORKSPACE}/uboot_user_defconfig" ];then
+    # 优先级 0: 查找 configs/target/${TARGET_BOARD}/uboot_defconfig
+    if [ -f "${TARGET_DEFCONFIG}" ];then
+        if [ -s "${TARGET_DEFCONFIG}" ]; then
+            echo "✓ Found: configs/target/${TARGET_BOARD}/uboot_defconfig"
+            cp "${TARGET_DEFCONFIG}" .config
+            ${MAKE} ARCH=${UBOOT_ARCH} olddefconfig
+            CONFIG_FOUND=yes
+            CONFIG_SOURCE="configs/target/${TARGET_BOARD}/uboot_defconfig"
+        else
+            echo "Target U-Boot defconfig exists but is empty: ${TARGET_DEFCONFIG}"
+            echo "Falling back to U-Boot source defconfig: configs/${UBOOT_DEFCONFIG}"
+        fi
+    else
+        echo "Target U-Boot defconfig not found: ${TARGET_DEFCONFIG}"
+        echo "Falling back to U-Boot source defconfig: configs/${UBOOT_DEFCONFIG}"
+    fi
+
+    if [ "${CONFIG_FOUND}" != "yes" ]; then
+    # 优先级 1: 使用 U-Boot 源码中的 defconfig
+    if [ -n "${UBOOT_DEFCONFIG}" ] && [ -f "configs/${UBOOT_DEFCONFIG}" ];then
+        echo "✓ Found: configs/${UBOOT_DEFCONFIG} (U-Boot source tree)"
+        ${MAKE} ARCH=${UBOOT_ARCH} ${UBOOT_DEFCONFIG}
+        CONFIG_FOUND=yes
+        CONFIG_SOURCE="configs/${UBOOT_DEFCONFIG} (U-Boot source)"
+
+    # 优先级 2: 检查是否有用户自定义配置（menuconfig 保存的配置）
+    elif [ -f "${WORKSPACE}/uboot_user_defconfig" ];then
         echo "✓ Found: uboot_user_defconfig (from previous menuconfig)"
         cp "${WORKSPACE}/uboot_user_defconfig" .config
         ${MAKE} ARCH=${UBOOT_ARCH} oldconfig
         CONFIG_FOUND=yes
         CONFIG_SOURCE="uboot_user_defconfig"
-        
-    # 优先级 1: 查找 target/defconfig/uboot/${BL_CONF}
-    elif [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}" ];then
-        echo "✓ Found: target/defconfig/uboot/${BL_CONF}"
-        # 复制到 U-Boot 源码的 configs 目录
-        cp "${TARGET_DEFCONFIG_DIR}/${BL_CONF}" configs/
-        ${MAKE} ARCH=${UBOOT_ARCH} ${BL_CONF}
-        CONFIG_FOUND=yes
-        CONFIG_SOURCE="target/defconfig/uboot/${BL_CONF}"
-       
-    # 优先级 2: 查找 target/defconfig/uboot/${BL_CONF}.config
-    elif [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config" ];then
-        echo "✓ Found: target/defconfig/uboot/${BL_CONF}.config"
-        cp "${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config" .config
-        ${MAKE} ARCH=${UBOOT_ARCH} oldconfig
-        CONFIG_FOUND=yes
-        CONFIG_SOURCE="target/defconfig/uboot/${BL_CONF}.config"
-        
-    # 优先级 3: 使用 U-Boot 源码中的 defconfig
-    elif [ -f "configs/${BL_CONF}" ];then
-        echo "✓ Found: configs/${BL_CONF} (U-Boot source tree)"
-        ${MAKE} ARCH=${UBOOT_ARCH} ${BL_CONF}
-        CONFIG_FOUND=yes
-        CONFIG_SOURCE="configs/${BL_CONF} (U-Boot source)"
         
     # 优先级 4: 检查是否已有 .config
     elif [ -f ".config" ];then
@@ -259,26 +345,21 @@ compile_uboot()
         echo "ERROR: No U-Boot configuration found!"
         echo "=========================================="
         echo "Searched locations (in order):"
-        echo "  1. ${WORKSPACE}/uboot_user_defconfig"
+        echo "  1. ${TARGET_DEFCONFIG}"
+        echo "  2. ${UBOOT_PWD}/configs/${UBOOT_DEFCONFIG}"
+        if [ -f "${UBOOT_PWD}/configs/${UBOOT_DEFCONFIG}" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
+        echo ""
+        echo "  3. ${WORKSPACE}/uboot_user_defconfig"
         if [ -f "${WORKSPACE}/uboot_user_defconfig" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
         echo ""
-        echo "  2. ${TARGET_DEFCONFIG_DIR}/${BL_CONF}"
-        if [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
-        echo ""
-        echo "  3. ${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config"
-        if [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
-        echo ""
-        echo "  4. ${UBOOT_PWD}/configs/${BL_CONF}"
-        if [ -f "${UBOOT_PWD}/configs/${BL_CONF}" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
-        echo ""
-        echo "  5. ${UBOOT_PWD}/.config"
+        echo "  4. ${UBOOT_PWD}/.config"
         if [ -f "${UBOOT_PWD}/.config" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
         echo ""
         echo "Available defconfigs in U-Boot source (configs/):"
         if [ -d "${UBOOT_PWD}/configs" ]; then
             # 显示相关的配置文件
-            echo "  Searching for similar configs matching '${BL_CONF}'..."
-            SIMILAR=$(ls "${UBOOT_PWD}/configs/" 2>/dev/null | grep -i "$(echo ${BL_CONF} | sed 's/_defconfig$//' | sed 's/_.*//')" | head -10)
+            echo "  Searching for similar configs matching '${UBOOT_DEFCONFIG}'..."
+            SIMILAR=$(ls "${UBOOT_PWD}/configs/" 2>/dev/null | grep -i "$(echo ${UBOOT_DEFCONFIG} | sed 's/_defconfig$//' | sed 's/_.*//')" | head -10)
             if [ -n "${SIMILAR}" ]; then
                 echo "${SIMILAR}" | sed 's/^/    - /'
             else
@@ -292,11 +373,12 @@ compile_uboot()
         fi
         echo ""
         echo "Solutions:"
-        echo "  1. Create defconfig at: ${TARGET_DEFCONFIG_DIR}/${BL_CONF}"
+        echo "  1. Fill defconfig at: ${TARGET_DEFCONFIG}"
         echo "  2. Use existing U-Boot defconfig: ls ${UBOOT_PWD}/configs/"
-        echo "  3. Check if BL_CONF='${BL_CONF}' is correct in board config"
+        echo "  3. Check if UBOOT_DEFCONFIG='${UBOOT_DEFCONFIG}' is correct in board config"
         echo "=========================================="
         exit 1
+    fi
     fi
     
     echo "  Config source: ${CONFIG_SOURCE}"
@@ -314,10 +396,16 @@ compile_uboot()
     fi
     
     # 设置 BL31 路径（如果存在）
-    BL31_BIN=$(find ${WORKSPACE}/atf/build -name "bl31.bin" 2>/dev/null | head -n 1)
-    if [ -n "${BL31_BIN}" ];then
-        export BL31="${BL31_BIN}"
-        echo "Using ATF BL31: ${BL31}"
+    if [ "${BUILD_ATF}" = "yes" ]; then
+        BL31_BIN=$(find ${WORKSPACE}/atf/build -name "bl31.bin" 2>/dev/null | head -n 1)
+        if [ -n "${BL31_BIN}" ];then
+            export BL31="${BL31_BIN}"
+            echo "Using ATF BL31: ${BL31}"
+        else
+            echo "WARNING: BUILD_ATF=yes but bl31.bin not found"
+        fi
+    else
+        unset BL31
     fi
     
     # 编译 U-Boot
@@ -413,6 +501,8 @@ fi
 echo "Loading board configuration: ${CONFIG_FILE}"
 source "${CONFIG_FILE}"
 
+TARGET_BOARD="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+
 # 架构配置回退机制
 if [ -z "${UBOOT_ARCH}" ]; then
     UBOOT_ARCH="${ARCH}"
@@ -435,6 +525,14 @@ if [ -z "${ATF_GCC}" ]; then
     echo "Notice: ATF_GCC not set, using UBOOT_GCC"
 fi
 
+if [ -z "${BUILD_ATF}" ]; then
+    if [ "${ARCH}" = "arm64" ] || [ "${UBOOT_ARCH}" = "arm64" ]; then
+        BUILD_ATF="yes"
+    else
+        BUILD_ATF="no"
+    fi
+fi
+
 echo "Configuration loaded:"
 echo "  Board: ${BOARD_NAME}"
 echo "  Kernel Architecture: ${ARCH}"
@@ -444,14 +542,19 @@ echo "  Bootloader Type: ${BL_CONFIG}"
 echo "  Kernel Compiler: ${KERNEL_GCC}"
 echo "  U-Boot Compiler: ${UBOOT_GCC}"
 echo "  ATF Compiler: ${ATF_GCC}"
+echo "  Build ATF: ${BUILD_ATF}"
 echo "  Menuconfig: ${MENUCONFIG}"
 echo "  Use ccache: ${USE_CCACHE}"
 echo ""
 
 # 根据 Bootloader 类型进行构建
-if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
-    echo "Building Allwinner U-Boot with ATF"
-    echo "  U-Boot Config: ${BL_CONF}"
+if is_mainline_uboot; then
+    if [ "${BL_CONFIG}" = "mainline-uboot" ]; then
+        echo "Building Mainline U-Boot"
+    else
+        echo "Building Allwinner U-Boot"
+    fi
+    echo "  U-Boot Config: ${UBOOT_DEFCONFIG}"
     echo "  U-Boot Patch: ${BL_PATCHDIR:-none}"
     echo ""
     
@@ -459,9 +562,14 @@ if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
     if [ -n "${BL_PATCHDIR}" ] && [ "${BL_PATCHDIR}" != "none" ]; then
         patch_uboot "${BL_PATCHDIR}" "${WORKSPACE}/${BL_CONFIG}" || exit 1
     fi
+    deploy_uboot_dts
     
     # 编译 ATF
-    compile_atf || exit 1
+    if [ "${BUILD_ATF}" = "yes" ]; then
+        compile_atf || exit 1
+    else
+        echo "Skipping ATF build (BUILD_ATF=${BUILD_ATF})"
+    fi
     
     # 编译 U-Boot
     compile_uboot || exit 1
@@ -492,10 +600,14 @@ if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
     fi
     
     # 复制 ATF bl31.bin
-    BL31_BIN=$(find ${WORKSPACE}/atf/build -name "bl31.bin" 2>/dev/null | head -n 1)
-    if [ -n "${BL31_BIN}" ]; then
-        cp "${BL31_BIN}" "${OUTPUT}/"
-        echo "  [OK] bl31.bin"
+    if [ "${BUILD_ATF}" = "yes" ]; then
+        BL31_BIN=$(find ${WORKSPACE}/atf/build -name "bl31.bin" 2>/dev/null | head -n 1)
+        if [ -n "${BL31_BIN}" ]; then
+            cp "${BL31_BIN}" "${OUTPUT}/"
+            echo "  [OK] bl31.bin"
+        else
+            echo "  WARNING: BUILD_ATF=yes but bl31.bin not found, skip copy"
+        fi
     fi
     
     # 生成 boot.scr
@@ -516,7 +628,7 @@ if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
     
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
     echo "Building Rockchip U-Boot"
-    echo "  U-Boot Config: ${BL_CONF}"
+    echo "  U-Boot Config: ${UBOOT_DEFCONFIG}"
     echo "  U-Boot Patch: ${BL_PATCHDIR:-none}"
     echo ""
     
@@ -538,6 +650,7 @@ elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
     if [ -n "${BL_PATCHDIR}" ] && [ "${BL_PATCHDIR}" != "none" ]; then
         patch_uboot "${BL_PATCHDIR}" "${WORKSPACE}/${BL_CONFIG}" || exit 1
     fi
+    deploy_uboot_dts
     
     # 进入 U-Boot 目录
     cd "${WORKSPACE}/${BL_CONFIG}"
@@ -583,34 +696,42 @@ elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
     fi
     
     # 定义 target 目录
-    TARGET_DEFCONFIG_DIR="${BASE_DIR}/configs/target/defconfig/uboot"
+    TARGET_BOARD="${TARGET_BOARD:-${BOARD_NAME:-${BOARD}}}"
+    TARGET_DEFCONFIG="${BASE_DIR}/configs/target/${TARGET_BOARD}/uboot_defconfig"
     
     echo "Searching for U-Boot configuration..."
-    echo "  Target config: ${BL_CONF}"
+    echo "  Target board: ${TARGET_BOARD}"
+    echo "  Target config: ${UBOOT_DEFCONFIG}"
     echo ""
     
     # 多级查找 defconfig（与 compile_uboot 相同的逻辑）
     CONFIG_FOUND=no
     UBOOT_PWD=$(pwd)
     
-    if [ -f "${WORKSPACE}/uboot_user_defconfig" ];then
+    if [ -f "${TARGET_DEFCONFIG}" ];then
+        if [ -s "${TARGET_DEFCONFIG}" ]; then
+            echo "✓ Found: configs/target/${TARGET_BOARD}/uboot_defconfig"
+            cp "${TARGET_DEFCONFIG}" .config
+            make ARCH=${UBOOT_ARCH} olddefconfig
+            CONFIG_FOUND=yes
+        else
+            echo "Target U-Boot defconfig exists but is empty: ${TARGET_DEFCONFIG}"
+            echo "Falling back to U-Boot source defconfig: configs/${UBOOT_DEFCONFIG}"
+        fi
+    else
+        echo "Target U-Boot defconfig not found: ${TARGET_DEFCONFIG}"
+        echo "Falling back to U-Boot source defconfig: configs/${UBOOT_DEFCONFIG}"
+    fi
+
+    if [ "${CONFIG_FOUND}" != "yes" ]; then
+    if [ -n "${UBOOT_DEFCONFIG}" ] && [ -f "configs/${UBOOT_DEFCONFIG}" ];then
+        echo "✓ Found: configs/${UBOOT_DEFCONFIG} (U-Boot source tree)"
+        make CROSS_COMPILE=${UBOOT_GCC} ARCH=${UBOOT_ARCH} ${UBOOT_DEFCONFIG}
+        CONFIG_FOUND=yes
+    elif [ -f "${WORKSPACE}/uboot_user_defconfig" ];then
         echo "✓ Found: uboot_user_defconfig (from previous menuconfig)"
         cp "${WORKSPACE}/uboot_user_defconfig" .config
         make ARCH=${UBOOT_ARCH} oldconfig
-        CONFIG_FOUND=yes
-    elif [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}" ];then
-        echo "✓ Found: target/defconfig/uboot/${BL_CONF}"
-        cp "${TARGET_DEFCONFIG_DIR}/${BL_CONF}" configs/
-        make CROSS_COMPILE=${UBOOT_GCC} ARCH=${UBOOT_ARCH} ${BL_CONF}
-        CONFIG_FOUND=yes
-    elif [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config" ];then
-        echo "✓ Found: target/defconfig/uboot/${BL_CONF}.config"
-        cp "${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config" .config
-        make ARCH=${UBOOT_ARCH} oldconfig
-        CONFIG_FOUND=yes
-    elif [ -f "configs/${BL_CONF}" ];then
-        echo "✓ Found: configs/${BL_CONF} (U-Boot source tree)"
-        make CROSS_COMPILE=${UBOOT_GCC} ARCH=${UBOOT_ARCH} ${BL_CONF}
         CONFIG_FOUND=yes
     elif [ -f ".config" ];then
         echo "✓ Using existing .config"
@@ -622,25 +743,22 @@ elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
         echo "ERROR: No U-Boot configuration found!"
         echo "=========================================="
         echo "Searched locations:"
-        echo "  1. ${WORKSPACE}/uboot_user_defconfig"
+        echo "  1. ${TARGET_DEFCONFIG}"
+        if [ -s "${TARGET_DEFCONFIG}" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND OR EMPTY]"; fi
+        echo ""
+        echo "  2. ${UBOOT_PWD}/configs/${UBOOT_DEFCONFIG}"
+        if [ -f "${UBOOT_PWD}/configs/${UBOOT_DEFCONFIG}" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
+        echo ""
+        echo "  3. ${WORKSPACE}/uboot_user_defconfig"
         if [ -f "${WORKSPACE}/uboot_user_defconfig" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
         echo ""
-        echo "  2. ${TARGET_DEFCONFIG_DIR}/${BL_CONF}"
-        if [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
-        echo ""
-        echo "  3. ${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config"
-        if [ -f "${TARGET_DEFCONFIG_DIR}/${BL_CONF}.config" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
-        echo ""
-        echo "  4. ${UBOOT_PWD}/configs/${BL_CONF}"
-        if [ -f "${UBOOT_PWD}/configs/${BL_CONF}" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
-        echo ""
-        echo "  5. ${UBOOT_PWD}/.config"
+        echo "  4. ${UBOOT_PWD}/.config"
         if [ -f "${UBOOT_PWD}/.config" ]; then echo "     [EXISTS]"; else echo "     [NOT FOUND]"; fi
         echo ""
         echo "Available defconfigs in U-Boot source (configs/):"
         if [ -d "${UBOOT_PWD}/configs" ]; then
-            echo "  Searching for similar configs matching '${BL_CONF}'..."
-            SIMILAR=$(ls "${UBOOT_PWD}/configs/" 2>/dev/null | grep -i "$(echo ${BL_CONF} | sed 's/_defconfig$//' | sed 's/_.*//')" | head -10)
+            echo "  Searching for similar configs matching '${UBOOT_DEFCONFIG}'..."
+            SIMILAR=$(ls "${UBOOT_PWD}/configs/" 2>/dev/null | grep -i "$(echo ${UBOOT_DEFCONFIG} | sed 's/_defconfig$//' | sed 's/_.*//')" | head -10)
             if [ -n "${SIMILAR}" ]; then
                 echo "${SIMILAR}" | sed 's/^/    - /'
             else
@@ -654,11 +772,12 @@ elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
         fi
         echo ""
         echo "Solutions:"
-        echo "  1. Create defconfig at: ${TARGET_DEFCONFIG_DIR}/${BL_CONF}"
+        echo "  1. Fill defconfig at: ${TARGET_DEFCONFIG}"
         echo "  2. Use existing defconfig from: ls ${UBOOT_PWD}/configs/"
-        echo "  3. Check BL_CONF='${BL_CONF}' in board config"
+        echo "  3. Check UBOOT_DEFCONFIG='${UBOOT_DEFCONFIG}' in board config"
         echo "=========================================="
         exit 1
+    fi
     fi
     
     # 运行 menuconfig（如果需要）
@@ -695,17 +814,17 @@ elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
         echo ""
         echo "Generating idbloader.img..."
         
-        # 从 BL_CONF 自动推断 SoC 类型
+        # 从 UBOOT_DEFCONFIG 自动推断 SoC 类型
         SOC_TYPE="rk3588"  # 默认值
-        if [[ "${BL_CONF}" == *"rk3588"* ]]; then
+        if [[ "${UBOOT_DEFCONFIG}" == *"rk3588"* ]]; then
             SOC_TYPE="rk3588"
-        elif [[ "${BL_CONF}" == *"rk3576"* ]]; then
+        elif [[ "${UBOOT_DEFCONFIG}" == *"rk3576"* ]]; then
             SOC_TYPE="rk3576"
-        elif [[ "${BL_CONF}" == *"rk3568"* ]]; then
+        elif [[ "${UBOOT_DEFCONFIG}" == *"rk3568"* ]]; then
             SOC_TYPE="rk3568"
-        elif [[ "${BL_CONF}" == *"rk3566"* ]]; then
+        elif [[ "${UBOOT_DEFCONFIG}" == *"rk3566"* ]]; then
             SOC_TYPE="rk3566"
-        elif [[ "${BL_CONF}" == *"rk3399"* ]]; then
+        elif [[ "${UBOOT_DEFCONFIG}" == *"rk3399"* ]]; then
             SOC_TYPE="rk3399"
         fi
         echo "  Auto-detected SOC_TYPE: ${SOC_TYPE}"
@@ -785,14 +904,9 @@ elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
     echo "  sudo dd if=${OUTPUT}/idbloader.img of=/dev/sdX seek=64 conv=fsync"
     echo "  sudo dd if=${OUTPUT}/u-boot.itb of=/dev/sdX seek=16384 conv=fsync"
     
-elif [ "${BL_CONFIG}" == "custom" ]; then
-    echo "ERROR: Custom bootloader build not yet implemented"
-    echo "Please implement your custom build logic"
-    exit 1
-    
 else
     echo "ERROR: Unknown bootloader type: ${BL_CONFIG}"
-    echo "Supported types: sunxi-uboot, rockchip-uboot, custom"
+    echo "Supported types: mainline-uboot, sunxi-uboot, rockchip-uboot"
     exit 1
 fi
 

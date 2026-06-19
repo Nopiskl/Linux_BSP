@@ -6,7 +6,7 @@ Board configuration files are located in `configs/board/` directory.
 
 ```bash
 # 1. Copy template
-cp configs/board/example.conf configs/board/myboard.conf
+cp configs/board/mainline_soc-example.conf configs/board/myboard.conf
 
 # 2. Edit configuration
 nano configs/board/myboard.conf
@@ -36,7 +36,7 @@ LINUX_REPO="https://github.com/torvalds/linux.git"
 LINUX_BRANCH="v6.1"
 
 # Configuration file
-LINUX_CONFIG="defconfig"
+KERNEL_DEFCONFIG="defconfig"
 
 # Patch directory (usually "none")
 LINUX_PATHDIR="none"
@@ -48,13 +48,13 @@ Common kernel versions:
 
 ### Bootloader Configuration
 
-#### Method 1: Using Supported Bootloaders
+#### Using Supported Bootloaders
 
 ```bash
-# Allwinner SyterKit
-BL_CONFIG="sunxi-syterkit"
-SYTERKIT_REPO="https://github.com/YuzukiHD/SyterKit.git"
-SYTERKIT_BRANCH="master"
+# Mainline U-Boot
+BL_CONFIG="mainline-uboot"
+UBOOT_REPO="https://github.com/u-boot/u-boot.git"
+UBOOT_BRANCH="master"
 
 # Or Allwinner U-Boot
 BL_CONFIG="sunxi-uboot"
@@ -67,11 +67,4 @@ UBOOT_REPO="https://github.com/rockchip-linux/u-boot.git"
 UBOOT_BRANCH="master"
 ```
 
-#### Method 2: Custom Bootloader
-
-```bash
-BL_CONFIG="custom"
-```
-
-For detailed configuration and examples, see complete documentation in `configs/board/example.conf`.
-
+For detailed configuration and examples, see complete documentation in `configs/board/mainline_soc-example.conf`.

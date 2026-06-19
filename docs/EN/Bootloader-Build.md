@@ -6,7 +6,7 @@ This document describes how to build bootloader using `build-boot.sh`.
 
 ```bash
 # 1. Configure board
-cp configs/board/example.conf configs/board/myboard.conf
+cp configs/board/mainline_soc-example.conf configs/board/myboard.conf
 nano configs/board/myboard.conf
 
 # 2. Get sources
@@ -33,20 +33,20 @@ Options:
 
 ## Supported Platforms
 
-### Allwinner (sunxi-uboot)
+### Mainline U-Boot (mainline-uboot)
 
-For Allwinner H6/H616/H618/A64/T527 SoCs.
+For ARM64 SoC platforms using the mainline U-Boot + ATF flow.
 
 **Configuration example:**
 
 ```bash
 # Bootloader type
-BL_CONFIG="sunxi-uboot"
+BL_CONFIG="mainline-uboot"
 
 # U-Boot configuration
 UBOOT_REPO="https://github.com/u-boot/u-boot.git"
 UBOOT_BRANCH="master"
-BL_CONF="sun50i_defconfig"
+UBOOT_DEFCONFIG="sun50i_defconfig"
 
 # ATF configuration
 ATF_REPO="https://github.com/ARM-software/arm-trusted-firmware.git"
@@ -86,7 +86,7 @@ BL_CONFIG="rockchip-uboot"
 # U-Boot configuration
 UBOOT_REPO="https://github.com/rockchip-linux/u-boot.git"
 UBOOT_BRANCH="master"
-BL_CONF="rk3588_defconfig"
+UBOOT_DEFCONFIG="rk3588_defconfig"
 
 # RKBIN configuration
 RKBIN_REPO="https://github.com/rockchip-linux/rkbin.git"
@@ -126,28 +126,25 @@ sudo dd if=bootloader-myboard/u-boot.itb \
 
 Build script searches for configuration in this order:
 
-1. `${WORKSPACE}/uboot_user_defconfig` - Saved from menuconfig
-2. `configs/target/defconfig/uboot/${BL_CONF}` - Custom defconfig
-3. `configs/target/defconfig/uboot/${BL_CONF}.config` - Custom .config
-4. `u-boot/configs/${BL_CONF}` - Defconfig from U-Boot source
-5. `u-boot/.config` - Existing .config
+1. `configs/target/${TARGET_BOARD}/uboot_defconfig` - Board defconfig override if non-empty
+2. `u-boot/configs/${UBOOT_DEFCONFIG}` - Defconfig from U-Boot source
+3. `${WORKSPACE}/uboot_user_defconfig` - Saved from menuconfig
+4. `u-boot/.config` - Existing .config
 
 ### Device Tree (DTS) Handling Logic
 
 Build script uses a flexible DTS handling strategy:
 
-**Deploy only when custom DTS is found:**
+**Deploy only when a target DTS override exists and is non-empty:**
 
-1. `configs/target/dts/uboot/${DEVICE_DTS}.dts` - U-Boot specific DTS
-2. `configs/target/dts/uboot/${DEVICE_DTS}.dtsi` - U-Boot specific DTSI
+1. `configs/target/${TARGET_BOARD}/uboot.dts` - U-Boot specific DTS override if non-empty
+2. `u-boot/dts/upstream/src/${UBOOT_ARCH}/${UBOOT_DTS}.dts` - Mainline U-Boot source DTS
+3. `u-boot/arch/arm/dts/${UBOOT_DTS}.dts` - Older/vendor U-Boot source DTS
 
-**If no custom DTS exists:**
+**If the target DTS is missing or empty:**
 
-- Check if DTS exists in U-Boot source tree
-- Check if kernel DTS exists (hint only, no forced copy)
-- **Let U-Boot use default behavior** (some SDKs auto-reuse kernel DTS)
-
-**Note:** Some SDKs automatically read from kernel DTS directory when building U-Boot, so manual copying is not required. The script does not force handling all cases, but lets U-Boot's build system handle it naturally
+- The build falls back to the DTS already present in the U-Boot source tree.
+- No export-based DTS override is used.
 
 ### Using menuconfig
 
@@ -156,7 +153,7 @@ Build script uses a flexible DTS handling strategy:
 ./tools/build-boot.sh -b myboard -m yes
 
 # Configuration is automatically saved to ${WORKSPACE}/uboot_user_defconfig
-# Next build will use this configuration
+# This configuration is used only when target and source defconfigs are unavailable
 ```
 
 ### Custom Configuration
@@ -168,19 +165,19 @@ Build script uses a flexible DTS handling strategy:
 ./tools/build-boot.sh -b myboard -m yes
 
 # 2. Export as defconfig
-cd output/sunxi-uboot  # or rockchip-uboot
+cd output/mainline-uboot  # or rockchip-uboot
 make savedefconfig
 
 # 3. Save to project
-cp defconfig ../../BSP_T527/configs/target/defconfig/uboot/myboard_defconfig
+cp defconfig ../../BSP_T527/configs/target/myboard/uboot_defconfig
 ```
 
 **Method 2: Use complete .config**
 
 ```bash
 # Copy complete configuration
-cp output/sunxi-uboot/.config \
-   configs/target/defconfig/uboot/myboard.config
+cp output/mainline-uboot/.config \
+   configs/target/myboard/uboot_defconfig
 ```
 
 
@@ -200,7 +197,7 @@ patches/uboot/myboard/
 ### Creating Patches
 
 ```bash
-cd output/sunxi-uboot
+cd output/mainline-uboot
 
 # Make changes and commit
 git add .
@@ -229,7 +226,7 @@ Check configuration name:
 
 ```bash
 # List available defconfigs
-cd output/sunxi-uboot
+cd output/mainline-uboot
 ls configs/ | grep defconfig
 ```
 
@@ -300,4 +297,3 @@ sudo apt-get install ccache
 - [ATF Documentation](https://trustedfirmware-a.readthedocs.io/)
 - [Rockchip U-Boot](https://github.com/rockchip-linux/u-boot)
 - [Board Configuration](Board-Configuration.md)
-

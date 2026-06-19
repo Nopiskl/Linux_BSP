@@ -219,6 +219,11 @@ clone_uboot()
     fi
 }
 
+is_mainline_uboot()
+{
+    [ "${BL_CONFIG}" = "mainline-uboot" ] || [ "${BL_CONFIG}" = "sunxi-uboot" ]
+}
+
 # Main execution
 echo "=========================================="
 echo "BSP Get Sources Tool"
@@ -261,34 +266,25 @@ fi
 
 echo "Source Repositories:"
 echo "  Linux: ${LINUX_REPO} (${LINUX_BRANCH})"
-if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+if is_mainline_uboot; then
     echo "  U-Boot: ${UBOOT_REPO} (${UBOOT_BRANCH})"
     echo "  ATF: ${ATF_REPO} (${ATF_BRANCH})"
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
     echo "  U-Boot: ${UBOOT_REPO} (${UBOOT_BRANCH})"
     echo "  RKBIN: ${RKBIN_REPO}"
-elif [ "${BL_CONFIG}" == "custom" ]; then
-    echo "  Bootloader: Custom (handled separately)"
 fi
 echo ""
 
 # Fetch bootloader sources
-if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+if is_mainline_uboot; then
     clone_atf || exit 1
     clone_uboot || exit 1
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
     clone_rkbin || exit 1
     clone_uboot || exit 1
-elif [ "${BL_CONFIG}" == "custom" ]; then
-    echo "=========================================="
-    echo "Custom Bootloader Configuration"
-    echo "=========================================="
-    echo "Skipping automatic bootloader fetch."
-    echo "Please ensure your bootloader is ready manually."
-    echo ""
 else
     echo "ERROR: Unknown bootloader type: ${BL_CONFIG}"
-    echo "Supported types: sunxi-uboot, rockchip-uboot, custom"
+    echo "Supported types: mainline-uboot, sunxi-uboot, rockchip-uboot"
     exit 1
 fi
 
@@ -312,7 +308,7 @@ echo ""
 echo "Workspace: ${WORKSPACE}"
 echo "  - Linux kernel: ${WORKSPACE}/linux"
 
-if [ "${BL_CONFIG}" == "sunxi-uboot" ]; then
+if is_mainline_uboot; then
     echo "  - U-Boot: ${WORKSPACE}/${BL_CONFIG}"
     echo "  - ATF: ${WORKSPACE}/atf"
 elif [ "${BL_CONFIG}" == "rockchip-uboot" ]; then
@@ -323,4 +319,3 @@ fi
 echo ""
 echo "Completed at: $(date)"
 exit 0
-

@@ -117,12 +117,13 @@ docs/
 ## 主要特性 / Key Features
 
 ### 多级配置管理
-- Defconfig 5级优先级查找
-- DTS 灵活部署和复用
+- Target 板级覆盖优先，空文件自动回退源码自带 DTS/defconfig
+- 同时支持 Linux 和 U-Boot 的 DTS/defconfig 覆盖
 - 支持 menuconfig 交互配置
 
 ### 多厂商支持
-- Allwinner (sunxi-uboot)
+- Mainline U-Boot (mainline-uboot)
+- Allwinner U-Boot (sunxi-uboot)
 - Rockchip (rockchip-uboot)
 - 统一的构建接口
 
@@ -151,7 +152,7 @@ docs/
 3. 查看脚本的详细错误信息
 
 ### 配置问题
-1. 参考 `configs/board/example.conf` 示例
+1. 参考 `configs/board/mainline_soc-example.conf` 示例
 2. 查看板型配置文档
 3. 检查配置文件语法
 

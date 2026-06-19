@@ -6,7 +6,7 @@
 
 ```bash
 # 1. 配置板型
-cp configs/board/example.conf configs/board/myboard.conf
+cp configs/board/mainline_soc-example.conf configs/board/myboard.conf
 nano configs/board/myboard.conf
 
 # 2. 获取源码
@@ -33,16 +33,16 @@ ls -lh bootloader-myboard/
 
 ## 支持的平台
 
-### Allwinner (sunxi-uboot)
+### Mainline U-Boot (mainline-uboot)
 
-适用于 Allwinner H6/H616/H618/A64/T527 等芯片。
+适用于使用主线 U-Boot + ATF 流程的 ARM64 SoC 平台。
 
 **配置示例：**
 
 ```bash
 # 架构配置
 ARCH="arm64"                   # 内核架构
-UBOOT_ARCH="arm"               # U-Boot 架构（全志通常用 arm）
+UBOOT_ARCH="arm64"             # U-Boot 架构
 ATF_ARCH=""                    # ATF 架构（不设置）
 
 # 工具链配置
@@ -51,12 +51,12 @@ UBOOT_GCC="aarch64-linux-gnu-"     # U-Boot 工具链
 ATF_GCC="aarch64-linux-gnu-"       # ATF 工具链
 
 # Bootloader 类型
-BL_CONFIG="sunxi-uboot"
+BL_CONFIG="mainline-uboot"
 
 # U-Boot 配置
 UBOOT_REPO="https://github.com/u-boot/u-boot.git"
 UBOOT_BRANCH="master"
-BL_CONF="sun50i_defconfig"
+UBOOT_DEFCONFIG="sun50i_defconfig"
 
 # ATF 配置
 ATF_REPO="https://github.com/ARM-software/arm-trusted-firmware.git"
@@ -106,7 +106,7 @@ BL_CONFIG="rockchip-uboot"
 # U-Boot 配置
 UBOOT_REPO="https://github.com/rockchip-linux/u-boot.git"
 UBOOT_BRANCH="master"
-BL_CONF="rk3588_defconfig"
+UBOOT_DEFCONFIG="rk3588_defconfig"
 
 # RKBIN 配置
 RKBIN_REPO="https://github.com/rockchip-linux/rkbin.git"
@@ -148,12 +148,12 @@ BSP 支持为不同组件设置独立的架构：
 
 ```bash
 ARCH="arm64"           # 内核架构
-UBOOT_ARCH="arm"       # U-Boot 架构（可以与内核不同）
+UBOOT_ARCH="arm64"     # U-Boot 架构
 ATF_ARCH=""            # ATF 架构（通常不需要设置）
 ```
 
 **关键点：**
-- **全志平台**：内核通常是 `arm64`，U-Boot 是 `arm`（32位启动）
+- **ARM64 主线方案**：内核和 U-Boot 通常都是 `arm64`
 - **Rockchip 平台**：内核和 U-Boot 通常都是 `arm64`
 - 未设置时自动回退：`UBOOT_ARCH → ARCH`，`ATF_ARCH → UBOOT_ARCH`
 
@@ -171,16 +171,16 @@ ATF_GCC="aarch64-linux-gnu-"       # ATF 工具链
 - `UBOOT_GCC` 未设置时使用 `KERNEL_GCC`
 - `ATF_GCC` 未设置时使用 `UBOOT_GCC`
 
-**注意：** `aarch64-linux-gnu-` 工具链可以编译 `ARCH=arm` 的代码
+**注意：** ARM64 平台建议内核、U-Boot 和 ATF 统一使用 `aarch64-linux-gnu-` 工具链
 
 ### 典型配置示例
 
-**全志 H616 板型（混合架构）：**
+**主线 ARM64 SoC 板型：**
 ```bash
 ARCH="arm64"                       # 64位内核
-UBOOT_ARCH="arm"                   # 32位 U-Boot
+UBOOT_ARCH="arm64"                 # 64位 U-Boot
 KERNEL_GCC="aarch64-linux-gnu-"
-UBOOT_GCC="aarch64-linux-gnu-"     # 同一工具链支持两种架构
+UBOOT_GCC="aarch64-linux-gnu-"
 ATF_GCC="aarch64-linux-gnu-"
 ```
 
@@ -199,25 +199,24 @@ ATF_GCC="aarch64-linux-gnu-"
 
 构建脚本按以下顺序查找配置：
 
-1. `${WORKSPACE}/uboot_user_defconfig` - menuconfig 保存的配置
-2. `configs/target/defconfig/uboot/${BL_CONF}` - 自定义 defconfig
-3. `configs/target/defconfig/uboot/${BL_CONF}.config` - 自定义 .config
-4. `u-boot/configs/${BL_CONF}` - U-Boot 源码中的 defconfig
-5. `u-boot/.config` - 已有的 .config
+1. `configs/target/${TARGET_BOARD}/uboot_defconfig` - 板级 defconfig 覆盖（非空才使用）
+2. `u-boot/configs/${UBOOT_DEFCONFIG}` - U-Boot 源码中的 defconfig
+3. `${WORKSPACE}/uboot_user_defconfig` - menuconfig 保存的配置
+4. `u-boot/.config` - 已有的 .config
 
 ### 设备树（DTS）管理
 
-设备树文件应直接在源码中管理和修改：
+U-Boot 设备树优先使用 `configs/target/${TARGET_BOARD}/uboot.dts`。
+如果该文件不存在或为空，则回退到 U-Boot 源码中的 `UBOOT_DTS`。
 
 **U-Boot 设备树：**
-- 位置：`output/sunxi-uboot/arch/arm/dts/` 或 `output/rockchip-uboot/arch/arm/dts/`
-- 修改后通过补丁（patch）方式管理（见下文补丁管理章节）
+- target 覆盖：`configs/target/${TARGET_BOARD}/uboot.dts`
+- 主线 U-Boot 回退位置：`output/mainline-uboot/dts/upstream/src/${UBOOT_ARCH}/${UBOOT_DTS}.dts`
+- 旧版/vendor U-Boot 回退位置：`output/${BL_CONFIG}/arch/arm/dts/${UBOOT_DTS}.dts`
 
 **内核设备树：**
-- 位置：`output/linux/arch/arm64/boot/dts/` 或对应的厂商目录
-- 修改后同样通过补丁（patch）方式管理
-
-**说明：** 某些 SDK 会自动共享内核和 U-Boot 的设备树，无需手动复制
+- target 覆盖：`configs/target/${TARGET_BOARD}/kernel.dts`
+- 源码回退位置：`output/linux/arch/${ARCH}/boot/dts/${KERNEL_DTS}.dts`
 
 ### 使用 menuconfig
 
@@ -226,7 +225,7 @@ ATF_GCC="aarch64-linux-gnu-"
 ./tools/build-boot.sh -b myboard -m yes
 
 # 配置自动保存到 ${WORKSPACE}/uboot_user_defconfig
-# 下次构建自动使用此配置
+# 当 target 和源码 defconfig 都不可用时会使用此配置
 ```
 
 ### 自定义配置
@@ -238,19 +237,19 @@ ATF_GCC="aarch64-linux-gnu-"
 ./tools/build-boot.sh -b myboard -m yes
 
 # 2. 导出为 defconfig
-cd output/sunxi-uboot  # 或 rockchip-uboot
+cd output/mainline-uboot  # 或 rockchip-uboot
 make savedefconfig
 
 # 3. 保存到项目
-cp defconfig ../../BSP_T527/configs/target/defconfig/uboot/myboard_defconfig
+cp defconfig ../../BSP_T527/configs/target/myboard/uboot_defconfig
 ```
 
 **方法2：使用完整 .config**
 
 ```bash
 # 复制完整配置
-cp output/sunxi-uboot/.config \
-   configs/target/defconfig/uboot/myboard.config
+cp output/mainline-uboot/.config \
+   configs/target/myboard/uboot_defconfig
 ```
 
 
@@ -270,7 +269,7 @@ patches/uboot/myboard/
 ### 创建补丁
 
 ```bash
-cd output/sunxi-uboot
+cd output/mainline-uboot
 
 # 进行修改并提交
 git add .
@@ -299,7 +298,7 @@ BL_PATCHDIR="myboard"
 
 ```bash
 # 查看可用的 defconfig
-cd output/sunxi-uboot
+cd output/mainline-uboot
 ls configs/ | grep defconfig
 ```
 
@@ -370,4 +369,3 @@ sudo apt-get install ccache
 - [ATF 官方文档](https://trustedfirmware-a.readthedocs.io/)
 - [Rockchip U-Boot](https://github.com/rockchip-linux/u-boot)
 - [板型配置说明](板型配置.md)
-

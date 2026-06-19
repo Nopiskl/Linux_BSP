@@ -1,16 +1,15 @@
 # Kernel Configuration Guide
 
-Kernel configuration files are located in `configs/target/defconfig/` directory.
+Kernel configuration overrides are located in `configs/target/<target-board>/`.
 
 ## Configuration Search Order
 
 Build system searches for kernel configuration in this order:
 
-1. `output/user_defconfig` - Configuration saved by menuconfig
-2. `configs/target/defconfig/${LINUX_CONFIG}` - Custom defconfig (Recommended)
-3. `configs/target/defconfig/${LINUX_CONFIG}.config` - Custom complete config
-4. `arch/${ARCH}/configs/${LINUX_CONFIG}` - Kernel source configuration
-5. `.config` - Existing configuration in kernel source
+1. `configs/target/${TARGET_BOARD}/kernel_defconfig` - Board defconfig override if non-empty
+2. `arch/${ARCH}/configs/${KERNEL_DEFCONFIG}` - Kernel source configuration
+3. `output/user_defconfig` - Configuration saved by menuconfig
+4. `.config` - Existing configuration in kernel source
 
 ## Quick Start
 
@@ -18,7 +17,7 @@ Build system searches for kernel configuration in this order:
 
 ```bash
 # configs/board/myboard.conf
-LINUX_CONFIG="sun55i_t527_bsp_defconfig"
+KERNEL_DEFCONFIG="sun55i_t527_bsp_defconfig"
 
 # Build
 ./build.sh -b myboard
@@ -38,11 +37,12 @@ make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- menuconfig
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- savedefconfig
 
 # 4. Copy to target directory
-cp defconfig ../../configs/target/defconfig/myboard_defconfig
+cp defconfig ../../configs/target/myboard/kernel_defconfig
 
 # 5. Update board configuration
 # configs/board/myboard.conf
-LINUX_CONFIG="myboard_defconfig"
+TARGET_BOARD="myboard"
+KERNEL_DEFCONFIG="defconfig"
 
 # 6. Build
 cd ../..
@@ -61,13 +61,13 @@ rm output/user_defconfig
 
 ## Device Tree Configuration
 
-Device tree files are located in `configs/target/dts/` directory.
+Kernel device tree overrides are located at `configs/target/<target-board>/kernel.dts`.
 
 ### Basic Usage
 
 ```bash
 # 1. Create device tree file
-# configs/target/dts/myboard.dts
+# configs/target/myboard/kernel.dts
 /dts-v1/;
 
 / {
@@ -81,9 +81,9 @@ Device tree files are located in `configs/target/dts/` directory.
 };
 
 # 2. Specify in board configuration (without .dts suffix)
-DEVICE_DTS="myboard"
+TARGET_BOARD="myboard"
+KERNEL_DTS="myboard"
 
 # 3. Build
 ./build.sh -b myboard
 ```
-
